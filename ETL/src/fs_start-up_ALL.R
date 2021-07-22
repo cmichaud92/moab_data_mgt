@@ -17,11 +17,10 @@
 #------------------------
 
 # Study
-STUDY <- "160lt"
+STUDY <- "123a"
 
 # Data year (should be current year)
 YEAR <- year(now())
-#YEAR <- 2021
 
 # Specify config used default, management or development
 CONFIG <- "management"
@@ -34,12 +33,14 @@ CONFIG <- "management"
 # Config
 #----------------------------------
 
-Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
+{
+  Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
+  config <- config::get(value = paste0(STUDY, "_config"),
+                        file = "T:/Shared drives/DNR_MoabFieldOffice/Data_mgt/etc/config_proj.yml")
 
-config <- config::get(value = paste0(STUDY, "_config"),
-                      file = "T:/My Drive/Projects/etc/config.yml")
+}
 
-config::is_active("development")
+config::is_active("management")
 
 
 #--------------------------------------
@@ -50,14 +51,14 @@ config::is_active("development")
 
 # Map the requisite files in /src
 files <- c(
-           list.files("./src", pattern = paste0("*_", config$data_type, ".R"), full.names = FALSE),
-           list.files("./src", pattern = "*_ALL.R", full.names = FALSE)
+           list.files("./ETL/src", pattern = paste0("*_", config$data_type, ".R"), full.names = FALSE),
+           list.files("./ETL/src", pattern = "*_ALL.R", full.names = FALSE)
            )
 
 # Map all raw data files in Data/
-dat_files <- list.files(config$data_path,
-                        pattern = paste0(".*", YEAR, ".*.dbf"),
-                        ignore.case = TRUE, full.names = FALSE)
+dat_files <- list.files(config$data_path)
+                        # pattern = paste0(".*", YEAR, ".*.dbf"),
+                        # ignore.case = TRUE, full.names = FALSE)
 
 
 # Copy specific files to the project dir
@@ -91,10 +92,10 @@ if (CONFIG == "development") {
   # Create src directory
   dir_create(path = paste0("./projects/", config$study, "-", YEAR, "/src"))
   # Copy src files
-  map(files, ~file_copy(path = paste0("./src/", .x),
+  map(files, ~file_copy(path = paste0("./ETL/src/", .x),
                         new_path =  paste0("./projects/", config$study, "-", YEAR, "/src/", .x)))
   # Copy raw data files
-  map(dat_files, ~file_copy(path = paste0("t:/My Drive/Data/datafiles/raw-data/",config$study, "/", .x),
+  map(dat_files, ~file_copy(path = paste0(config$data_path, "/", .x),
                             new_path =  paste0("./projects/", config$study, "-", YEAR, "/data/raw/", .x)))
     }
   }
@@ -115,7 +116,7 @@ gs4_auth(token = drive_token())
 
 # Import gsheet template
 
-templ <- readRDS(paste0("./src/", "gsheet-template_", config$data_type, ".Rds"))
+templ <- readRDS(paste0("./ETL/src/", "gsheet-template_", config$data_type, ".Rds"))
 
 if (CONFIG == "development") {
 
@@ -131,7 +132,7 @@ if (CONFIG == "development") {
 )
 
  drive_mv(paste(YEAR, "dev", config$study, "QAQC", sep = "_"),
-          path = paste0(gsub("^.*?Drive/","",config$gsheets_path), config$pi_lname, "/"))
+          path = paste0(gsub("^.*?Drive/","",config$gsheets_path, "/")))
 
 } else {
   gs4_create(
@@ -146,7 +147,7 @@ if (CONFIG == "development") {
   )
 
   drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
-           path = paste0(gsub("^.*?Drive/", "", config$gsheets_path), config$pi_lname, "/"))
+           path = paste0(gsub("^.*?Drive/", "", config$gsheets_path), "/"))
 
 }
 
