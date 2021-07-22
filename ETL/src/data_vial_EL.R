@@ -3,14 +3,14 @@
 
 
 
-
-library(tidyverse)
-library(lubridate)
-library(sf)
-library(UCRBtools)
-library(DBI)
-library(stringr)
-
+{
+  library(tidyverse)
+  library(lubridate)
+  library(sf)
+  library(UCRBtools)
+  library(DBI)
+  library(stringr)
+}
 
 # ----- User defined variables -----
 
@@ -236,9 +236,19 @@ if (exists("pit_tmp")) {
 }
 
 fnl_fish$pit_recap[fnl_fish$f_index == 219] <- "NNF"
+fnl_fish$vial_num[fnl_fish$f_index == 230] <- "05182113"
+fnl_fish$vial_num[fnl_fish$f_index == 231] <- "05182114"
+fnl_fish$vial_num[fnl_fish$f_index == 218] <- "05182101"
+
+ck <- fnl_fish %>%
+  filter(as.Date(datetime) == as.Date("2021-05-18") &
+           species == "WE") %>%
+  inner_join(select(fnl_site, s_index, boat, crew), by = "s_index")
+
 
 vial_fish <- fnl_fish %>%
-  filter(!is.na(key_aac)) %>%
+#  filter(!is.na(key_aac)) %>%
+  filter(f_index %in% c(230,231)) %>%
   mutate(vial_type = "whole-fish") %>%
   left_join(select(fnl_site, key_a, id_site), by = "key_a") %>%
   select(id_site,
@@ -252,11 +262,12 @@ vial_fish <- fnl_fish %>%
          epsg,
          vial_num:vial_notes
          )
+
 vial_site <- semi_join(fnl_site, vial_fish) %>%
   select(id_site:site_notes, cond_amb, rvr_temp, secchi)
 
-write_csv(vial_site, "./output/123d_2021_site-vials.csv")
-write_csv(vial_fish, "./output/123d_2021_fish-vials.csv")
+write_csv(vial_site, "./output/123d_2021_site-vials_01.csv")
+write_csv(vial_fish, "./output/123d_2021_fish-vials_01.csv")
 
 ck <- fnl_fish %>%
   filter(species == "WE")
