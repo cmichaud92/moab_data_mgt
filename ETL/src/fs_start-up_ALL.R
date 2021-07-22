@@ -116,39 +116,39 @@ gs4_auth(token = drive_token())
 
 # Import gsheet template
 
-templ <- readRDS(paste0("./ETL/src/", "gsheet-template_", config$data_type, ".Rds"))
-
-if (CONFIG == "development") {
-
-  gs4_create(
-    name = paste(YEAR, "dev", config$study, "QAQC", sep = "_"),
-    sheets = list(meta = templ$meta,
-                  stats = templ$stats,
-                  site = templ$site,
-                  fish = templ$fish,
-                  pittag = templ$pittag,
-                  floytag = templ$floytag,
-                  water_qual = templ$water_qual)
-)
-
- drive_mv(paste(YEAR, "dev", config$study, "QAQC", sep = "_"),
-          path = paste0(gsub("^.*?Drive/","",config$gsheets_path, "/")))
-
-} else {
-  gs4_create(
-    name = paste(YEAR, config$study, "QAQC", sep = "_"),
-    sheets = list(meta = templ$meta,
-                  stats = templ$stats,
-                  site = templ$site,
-                  fish = templ$fish,
-                  pittag = templ$pittag,
-                  floytag = templ$floytag,
-                  water_qual = templ$water_qual)
-  )
-
-  drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
-           path = paste0(gsub("^.*?Drive/", "", config$gsheets_path), "/"))
-
-}
+# templ <- readRDS(paste0("./ETL/src/", "gsheet-template_", config$data_type, ".Rds"))
+#
+# if (CONFIG == "development") {
+#
+#   gs4_create(
+#     name = paste(YEAR, "dev", config$study, "QAQC", sep = "_"),
+#     sheets = list(meta = templ$meta,
+#                   stats = templ$stats,
+#                   site = templ$site,
+#                   fish = templ$fish,
+#                   pittag = templ$pittag,
+#                   floytag = templ$floytag,
+#                   water_qual = templ$water_qual)
+# )
+#
+#  drive_mv(paste(YEAR, "dev", config$study, "QAQC", sep = "_"),
+#           path = paste0(gsub("^.*?Drive/","",config$gsheets_path, "/")))
+#
+# } else {
+#   gs4_create(
+#     name = paste(YEAR, config$study, "QAQC", sep = "_"),
+#     sheets = list(meta = templ$meta,
+#                   stats = templ$stats,
+#                   site = templ$site,
+#                   fish = templ$fish,
+#                   pittag = templ$pittag,
+#                   floytag = templ$floytag,
+#                   water_qual = templ$water_qual)
+#   )
+#
+#   drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
+#            path = paste0(gsub("^.*?Drive/", "", config$gsheets_path), "/"))
+#
+# }
 
 ## END

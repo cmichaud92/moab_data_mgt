@@ -67,7 +67,7 @@ fish_qcfx <- function(fish_data, site_data) {
 #--------------------
 pit_qcfx <- function(pit_data, fish_data) {
   fish_data %>%
-    select(f_index, key_aa, species) %>%
+    select(f_index, fish_id, species) %>%
     right_join(pit_data) %>%
     mutate(orphan_flg = ifelse(is.na(f_index), "FLAG", ""),
            nnf_flg = ifelse(pit_recap == "NNF", "FLAG", ""),
@@ -98,7 +98,7 @@ stats_qcfx <- function(site_data, fish_data, spp) {
               .groups = "drop")
   site_data %>%
     left_join(f, by = "site_id") %>%
-    group_by(pass, reach) %>%
+    group_by(pass) %>%
     summarise(n_site = n(),
               effort_hr = round(sum(el_sec) / 3600, 2),
               catch = sum(ct, na.rm = TRUE),
