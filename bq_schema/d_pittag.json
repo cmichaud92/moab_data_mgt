@@ -1,0 +1,20 @@
+[
+	{
+		"description": "Pit tag hex code fetched from STReaMS",
+		"mode": "REQUIRED",
+		"name": "PitTagString",
+		"type": "STRING"
+	},
+	{
+		"description": "UCREFRP species code",
+		"mode": "REQUIRED",
+		"name": "SpeciesCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Datetime the record was uploaded, timezone = 'America/Denver'",
+		"mode": "REQUIRED",
+		"name": "UploadDateTime",
+		"type": "DATETIME"
+	}
+]

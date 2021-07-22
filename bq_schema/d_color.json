@@ -1,0 +1,14 @@
+[
+	{
+		"description": "MFO color code",
+		"mode": "REQUIRED",
+		"name": "ColorCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Color name",
+		"mode": "REQUIRED",
+		"name": "ColorName",
+		"type": "STRING"
+	}
+]

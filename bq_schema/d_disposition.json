@@ -1,0 +1,20 @@
+[
+	{
+		"description": "Disposition of individual following the encounter, UCRB program disposition code",
+		"mode": "REQUIRED",
+		"name": "DispositionCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Description of the disposition following the encounter",
+		"mode": "REQUIRED",
+		"name": "DispositionDescription",
+		"type": "STRING"
+	},
+	{
+		"description": "Does this disposition infer mortality",
+		"mode": "REQUIRED",
+		"name": "IsDead",
+		"type": "BOOLEAN"
+	}		
+]

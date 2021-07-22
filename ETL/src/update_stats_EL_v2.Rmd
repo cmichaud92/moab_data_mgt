@@ -1,0 +1,554 @@
+---
+title: "123d update"
+author: "Chris Michaud"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(UCRBtools)
+library(DBI)
+library(knitr)
+library(mapview)
+library(flextable)
+
+# build "exclude"
+`%!in%` <- Negate(`%in%`)
+
+# Plots
+theme_set(theme_bw())
+
+```
+
+```{r usr-def-vars, include=FALSE}
+
+# Study
+STUDY <- "123d"
+
+# Data set location: Defaults to ./data
+# DATA_DIRECTORY <- "./data"
+
+# Data year (should be current year, its an update...)
+YEAR <- year(now())
+
+
+# Specify config used default, development or management
+CONFIG <- "management"
+
+# Specify path to config (working on remote machines)
+MAC <- "/Users/christophermichaud/google drive/My Drive/projects/DWR-projects/"
+HP <- "T:/My Drive/projects/"
+
+PATH2DRIVE <- HP 
+
+```
+
+```{r config-get,include=FALSE}
+
+Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
+
+config <- config::get(value = paste0(STUDY, "_config"),
+                      file = "T:/My Drive/projects/etc/config_proj.yml")
+
+config <- config::get(value = paste0(STUDY, "_config"),
+                      file = paste0(PATH2DRIVE,"etc/config_proj.yml"))
+
+config::is_active("management")
+
+
+
+```
+
+```{r data-io, warning=FALSE}
+# This creates a large list, each dbf table is a separate list element
+
+data <- dbf_io(file_path_in = config$data_path) %>%
+  map(rename_all, tolower) %>%
+  compact()
+
+# Site data
+if ("site" %in% names(data)) {
+  site_tmp <- map_df(data[grepl("site", names(data))], bind_rows) %>%
+    mutate_all(na_if, "Z")                                                # Converts "Z"s to NA
+} else {
+  warning("No `site` data present")
+}
+
+
+# Water data
+if ("water" %in% names(data)) {
+  water_tmp <- map_df(data[grepl("water", names(data))], bind_rows) %>%
+    mutate_at(c("cond_amb", "cond_spec", "rvr_temp", "secchi"),
+              function(x) {ifelse(x == 0, NA, x)}) %>%                    # Converts 0's to NA
+    mutate_all(na_if, "Z")                                                # Converts "Z"s to NA
+} else {
+  warning("No `water` data present")
+}
+
+# Fish data
+if ("fish" %in% names(data)) {
+  fish_tmp <- map_df(data[grepl("fish", names(data))], bind_rows) %>%
+    mutate_at(c("ilat", "ilon", "tot_length", "st_length", "weight"),     # Converts 0's to NA
+              function(x) {ifelse(x == 0, NA, x)}) %>%
+    mutate_all(na_if, "Z") %>%                                            # Converts "Z"s to NA
+    mutate(ray_ct = na_if(ray_ct, "N"),
+           tubercles = ifelse(species %in% spp_nat, tubercles, NA),        # Cleans up additional vars
+           rep_cond = toupper(rep_cond))
+} else {
+  warning("No `fish` data present")
+}
+
+# Pittag
+if ("pittag" %in% names(data)) {
+  pit_tmp <- map_df(data[grepl("pittag", names(data))], bind_rows) %>%
+    filter(!is.na(pit_num)) %>%
+    mutate_all(na_if, "Z")                                               # Converts "Z"s to NA
+} else {
+  warning("No `pittag` data present")
+}
+
+# Floytag
+if ("floytag" %in% names(data)) {
+  floy_tmp <- map_df(data[grepl("floytag", names(data))], bind_rows) %>%
+    filter(!is.na(floy_num)) %>%
+    mutate_all(na_if, "Z") %>%
+    select(-floy_id)
+} else {
+  warning("No `floytag` data present")
+}
+
+# Vial
+if ("vial" %in% names(data)) {
+  vial_tmp <- map_df(data[grepl("vial", names(data))], bind_rows) %>%
+    mutate_all(na_if, "Z")
+} else {
+  warning("No `vial` data present")
+}
+
+```
+
+
+```{r}
+# Source site data corrections
+source("./projects/123d-2021/src/etl_corrections_EL-123d-2021.R")
+
+```
+
+```{r transformations}
+
+# Create sample_number and index,
+# Create fnl table structures
+
+# Site table
+if (exists("site_tmp")) {
+  site <- site_tmp %>%
+    mutate(startdatetime = as.POSIXct(paste(mdy(date), starttime)),         # Replace `date` and `time` with `datetime`
+           enddatetime = as.POSIXct(paste(mdy(date), endtime)),
+           el_sec = effort_sec + (effort_min * 60),                         # Convert effort to seconds
+           project = config$study,
+           year = year(startdatetime)) %>%                                  # Add year varaible
+
+    arrange(startdatetime) %>%                                              # this orders data for indexing
+
+    mutate(s_index = row_number()) %>%                                         # add index for qc/site_id
+
+
+    left_join(tbl_rch, by = c("reach" = "cd_rch")) %>%                   # Add rvr_code variable
+
+    select(s_index, project,
+           year, river = cd_rvr,
+           reach, pass,
+           startdatetime, enddatetime,
+           start_rmi, end_rmi,
+           shoreline, el_sec,
+           boat, crew,
+           site_notes, key_a) %>%
+
+    mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),  # Simple Belknap correction
+                                                          x + 120, x)})
+
+
+
+} else {
+  warning("No `site` data present")
+}
+
+
+if (exists("water_tmp")) {
+  fnl_site <- site %>%
+    left_join(water_tmp, by = "key_a") %>%
+    rename(water_notes = h2o_notes) %>%
+    arrange(startdatetime)
+
+} else {
+  warning("No `water` data present")
+}
+# Site correction
+fnl_site$end_rmi[fnl_site$s_index == 10] <- 126.5
+fnl_site$river[fnl_site$s_index == 16] <- "CO"
+fnl_site$reach[fnl_site$s_index == 16] <- "LCO"
+fnl_site$end_rmi[fnl_site$s_index == 16] <- 72.8
+fnl_site$shoreline[fnl_site$s_index == 16] <- "B"
+
+# site join....
+samp_n <- select(fnl_site, s_index, key_a, t_stamp = startdatetime, reach, river)       # Create site_id df and apply to all tables.
+
+# Fish table
+if (exists("fish_tmp")) {
+  fish1 <- left_join(fish_tmp, samp_n, by = "key_a") %>%
+    mutate(datetime = as.POSIXct(paste(as.Date(t_stamp), time))) %>%
+    arrange(datetime) %>%
+    mutate(f_index = row_number()) %>%
+    mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),
+                                                          x + 120, x)}) %>%
+    select(f_index,
+           s_index,
+           key_aa,
+           key_a, river, reach,
+           rmi, datetime,
+           species, tot_length,
+           weight, sex,
+           rep_cond, tubercles,
+           ray_ct, disp,
+           fish_notes, key_a,
+           ilon, ilat)
+
+  fish_sf <- fish1 %>%                                     # Convert long-lat to UTMs
+    group_by(key_a, rmi) %>%
+    summarise(ilon = mean(ilon, na.rm = TRUE),
+              ilat = mean(ilat, na.rm = TRUE),
+              .groups = "drop") %>%
+    filter(!is.na(ilon)) %>%
+    st_as_sf(coords = c("ilon", "ilat"), crs = 4326) %>%
+    st_transform(crs = 32612) %>%
+    mutate(loc_x = st_coordinates(geometry)[, 1],
+           loc_y = st_coordinates(geometry)[, 2],
+           epsg = 32612) %>%
+    st_drop_geometry() %>%
+    select(key_a, rmi, loc_x, loc_y, epsg)
+
+  fish <- full_join(fish1, fish_sf, by = c("key_a", "rmi")) %>%
+    select(-c(ilat, ilon)) %>%
+    group_by(s_index) %>%
+    fill(loc_x, loc_y)
+} else {
+  warning("No `fish` data present")
+}
+
+
+if (exists("pit_tmp")) {
+  fnl_fish <- fish %>%
+    left_join(pit_tmp, by = c("key_a", "key_aa")) %>%
+    filter(!is.na(species)) %>%
+    arrange(datetime) %>%
+    mutate(p_index = row_number(),
+           pit_num = toupper(pit_num)) %>%
+    ungroup()
+} else {
+  warning("No `pittag` data present")
+}
+
+```
+
+<br> <br>
+
+# Project `r fnl_site$project[1]` summary for `r year(fnl_site$startdatetime[1])`
+
+<br><br>
+
+
+```{r}
+summary <- fnl_site %>% 
+  mutate(date = as.Date(startdatetime)) %>% 
+  group_by(river, date) %>%
+  summarise(el_sec = sum(el_sec),
+            .groups = "drop") %>% 
+  group_by(river) %>% 
+    
+  summarise(min_date = min(date),
+            max_date = max(date),
+            total_effort_hr = round(sum(el_sec) / 3600, 1),
+            sampling_days = n(),
+            .groups = "drop") 
+
+effort_summary <- summary %>% 
+  summarise(min_date = min(min_date),
+            max_date = max(max_date),
+            total_effort_hr = sum(total_effort_hr),
+            sampling_days = sum(sampling_days))
+  
+    
+```
+
+```{r}
+cpue <- fnl_site %>% 
+  select(key_a, river, el_sec) %>% 
+  left_join(select(fnl_fish, key_a, species), by = "key_a") %>% 
+  mutate(fish_ct = 1) %>% 
+  group_by(key_a, river, el_sec, species) %>% 
+  summarise(fish_ct = sum(fish_ct),
+            .groups = "drop") %>% 
+  complete(nesting(key_a, river, el_sec),
+           nesting(species),
+           fill = list(fish_ct = 0)) %>% 
+  filter(!is.na(species))
+
+cpue_summary <- cpue %>% 
+  group_by(river, species) %>% 
+  summarise(fish_ct = sum(fish_ct),
+            effort_hr = round(sum(el_sec) / 3600, 1),
+            cpue = round(fish_ct / effort_hr, 2),
+            .groups = "drop")
+
+fnl_summary <- summary %>% 
+  left_join(cpue_summary, by = "river")
+
+```
+
+## Overall effort summary 
+
+```{r}
+
+effort_summary %>% 
+  flextable() %>% 
+    set_table_properties(width = .9, layout = "autofit") %>% 
+    align(align = "center", part = "all") %>% 
+    set_header_labels(
+      min_date = "Sampling Start Date",
+      max_date = "Sapmling End Date",
+      total_effort_hr = "Sampling Effort (hours)",
+      sampling_days = "Number of Days Sampled"
+    )  %>% 
+    add_header_lines(values = "Table 1. Overall Sampling Effort Summary for 2021",  
+                     top = TRUE) %>% 
+    bold(part = "header") %>% 
+    align(j = 1, align = "left", part = "all") %>% 
+    fontsize(size = 14, part = "all")
+
+```
+
+<br><br>
+
+## Lower Green River 
+
+
+<br><br>
+
+```{r summary-by-river}
+
+tot_ct <- fnl_fish %>%
+  count(river, species) %>% 
+  arrange(river, desc(n))
+
+nm_rvr <- unique(tot_ct$river)
+
+fig_n <- nm_rvr %>% 
+  map(
+  ~filter(tot_ct, river == .x) %>% 
+  ggplot() +
+  geom_col(aes(x = n, y = reorder(species, n))) +
+    labs(title = paste0("Total Number of Fish Encountered on the ", .x),
+         x = "Number of fish encountered",
+         y = "Species"))
+fig_n <- set_names(fig_n, nm_rvr)
+
+
+fig_n$GR
+
+```
+
+<br><br>
+
+```{r}
+
+fig_cpue <- nm_rvr %>% 
+  map(
+  ~filter(cpue_summary, river == .x &
+            cpue > 0) %>% 
+  ggplot() +
+  geom_col(aes(x = cpue, y = reorder(species, cpue))) +
+    labs(title = paste0("Total Catch-per-Unit-Effort on the ", .x),
+         x = "Fish per hour",
+         y = "Species")) 
+
+fig_cpue <- set_names(fig_cpue, nm_rvr)
+
+#fig_cpue$CO
+fig_cpue$GR
+```
+
+<br><br>
+
+## Colorado River 
+
+<br><br>
+
+```{r}
+fig_n$CO
+```
+
+<br><br>
+
+```{r}
+fig_cpue$CO
+```
+
+```{r summary-by-day, eval=FALSE}
+day_ct <- fnl_fish %>%
+  mutate(week = week(as.Date(datetime))) %>% 
+  count(week, river, species) %>%
+  filter(species %in% c("SM", "WE"))
+
+day_ct %>% 
+  ggplot() +
+  geom_col(aes(x = as.character(week), y = n, fill = species), position = "dodge") + 
+  facet_wrap(~river)
+```
+
+```{r}
+cpue2 <- fnl_site %>%
+  select(key_a, river, startdatetime, el_sec) %>%
+  left_join(select(fnl_fish, key_a, species), by = "key_a") %>%
+  mutate(fish_ct = 1,
+         date = as.Date(startdatetime)) %>%
+  group_by(key_a, date, river, species, el_sec) %>%
+  summarise(fish_ct = sum(fish_ct),
+            .groups = "drop") %>%
+  complete(nesting(key_a, date, river, el_sec),
+           nesting(species),
+           fill = list(fish_ct = 0)) %>%
+  filter(!is.na(species))
+
+cpue_total <- cpue2 %>%
+  group_by(river, species) %>%
+  summarise(fish_ct = sum(fish_ct),
+            effort_hr = round(sum(el_sec) / 3600, 1),
+            cpue = round(fish_ct / effort_hr, 2),
+            .groups = "drop")
+```
+
+
+
+<br><br>
+
+```{r}
+cpue_total %>% 
+  filter(species %in% c("SM", "WE")) %>% 
+  flextable() %>% 
+    set_table_properties(width = .9, layout = "autofit") %>% 
+    align(align = "center", part = "all") %>% 
+    set_header_labels(
+      river = "River Code",
+      species = "Species",
+      fish_ct = "Number of fish encountered",
+      effort_hr = "Total Sampling Effort (hours)",
+      cpue = "Catch-per-Unit-Effort (fish/hour)"
+    )  %>% 
+    add_header_lines(values = "Table 2. Target Species Catch Summary for 2021",  
+                     top = TRUE) %>% 
+    bold(part = "header") %>% 
+    align(j = 1, align = "left", part = "all") %>% 
+    fontsize(size = 14, part = "all")
+```
+
+<br><br>
+
+```{r}
+cpue_week <- cpue2 %>% 
+  mutate(week = week(date)) %>% 
+  group_by(week, river, species) %>% 
+  summarise(fish_ct = sum(fish_ct),
+            effort_hr = round(sum(el_sec) / 3600, 1),
+            cpue = round(fish_ct / effort_hr, 2),
+            .groups = "drop")
+
+cpue_week %>% 
+  filter(species %in% c("WE", "SM")) %>% 
+  ggplot() +
+  geom_col(aes(x = as.character(week), y = cpue, fill = species), position = "dodge") +
+  facet_wrap(~river)
+
+```
+
+```{r warning=FALSE, message=FALSE}
+hists <- c("SM", "WE") %>%
+  map(
+    ~filter(fnl_fish, species == .x) %>% 
+      ggplot() +
+      geom_histogram(aes(x = tot_length), color = "black") +
+      labs(title = paste0("Length Histogram for ", .x),
+         x = "Total Length (mm)",
+         y = "Number of fish") + 
+      facet_wrap(~river)
+  )
+hists <- set_names(hists, c("SM", "WE"))
+hists$SM  
+hists$WE
+
+ 
+```
+
+<br><br>
+
+
+<br><br>
+
+```{r eval=FALSE}
+cpue_total %>% 
+  filter(species %in% spp_nat) %>% 
+  flextable() %>% 
+    set_table_properties(width = .9, layout = "autofit") %>% 
+    align(align = "center", part = "all") %>% 
+    set_header_labels(
+      river = "River Code",
+      species = "Species",
+      fish_ct = "Number of fish encountered",
+      effort_hr = "Total Sampling Effort (hours)",
+      cpue = "Catch-per-Unit-Effort (fish/hour)"
+    )  %>% 
+    add_header_lines(values = "Table 3. Native Species Catch Summary for 2021",  
+                     top = TRUE) %>% 
+    bold(part = "header") %>% 
+    align(j = 1, align = "left", part = "all") %>% 
+    fontsize(size = 14, part = "all")
+```
+
+<br><br>
+
+```{r spatial, eval=FALSE}
+
+spat_fish <- fish %>% 
+  filter(!is.na(loc_x)) %>% 
+  group_by(loc_x, loc_y, species) %>% 
+  summarise(n = n(),
+            .groups = "drop") %>% 
+  st_as_sf(coords = c("loc_x", "loc_y"), crs = 32612) 
+
+spp <- c("SM", "WE", "CS", "BT")
+cols <- c("darkgreen", "blue", "orange", "yellow")
+
+maps <- map2(spp, cols,
+  ~filter(spat_fish, species == .x) %>% 
+  mapview(cex = "n", 
+          col.regions = .y,
+          layer.name = .x,
+          map.types = c("Esri.WorldImagery", "CartoDB.Positron")))
+```
+
+```{r print-maps, eval=FALSE}
+maps[[1]] +
+  maps[[2]] +
+  maps[[3]] +
+  maps[[4]]
+
+```
+
+

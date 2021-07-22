@@ -1,0 +1,102 @@
+[
+	{
+		"description": "Detection unique identifier",
+		"mode": "NULLABLE",
+		"name": "DetectionID",
+		"type": "INTEGER"
+	},
+	{
+		"description": "UCRB program study code",
+		"mode": "REQUIRED",
+		"name": "StudyCode",
+		"type": "STRING"
+	},
+	{
+		"description": "UCRB program waterbody code",
+		"mode": "REQUIRED",
+		"name": "RiverCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Name of antenna deployment location",
+		"mode": "REQUIRED",
+		"name": "SiteName",
+		"type": "STRING"
+	},
+	{
+		"description": "Antenna deployment timestamp, timezone = 'UTC'",
+		"mode": "REQUIRED",
+		"name": "DeploymentTimeStamp_UTC",
+		"type": "TIMESTAMP"
+	},
+	{
+		"description": "Antenna retrieval timestamp, timezone = 'UTC'",
+		"mode": "REQUIRED",
+		"name": "RetrievalTimeStamp_UTC",
+		"type": "TIMESTAMP"
+	},
+	{
+		"description": "Antenna location - X coordiante, stored in EPSG 4326",
+		"name": "AntennaLocation_X",
+		"type": "FLOAT"
+	},
+	{
+		"description": "Antenna location - Y coordiante, stored in EPSG 4326",
+		"name": "AntennaLocation_Y",
+		"type": "FLOAT"
+	},
+	{
+		"description": "Encounter location - EPSG associated with the location coordnates, shoudl be EPSG 4326",
+		"name": "AntennaLocationEPSGCode",
+		"type": "INTEGER"
+	},
+	{
+		"fields": [
+			{
+				"description": "Detection timestamp, timezone = 'UTC'",
+				"mode": "REQUIRED",
+				"name": "DetectionTimeStamp_UTC",
+				"type": "TIMESTAMP"
+			},
+			{
+				"description": "Download timestamp, timezone = 'UTC'",
+				"mode": "NULLABLE",
+				"name": "DownloadTimeStamp_UTC",
+				"type": "TIMESTAMP"
+			},
+			{
+				"description": "Portable antenna identifier",
+				"mode": "NULLABLE",
+				"name": "AntennaID",
+				"type": "STRING"
+			},
+			{
+				"description": "Tag identifier Hex code (what we refer to as the tag string or number)",
+				"mode": "REQUIRED",
+				"name": "PitTagHex",
+				"type": "STRING"
+			},
+			{
+				"description": "Tag identifier decimal representation",
+				"mode": "NULLABLE",
+				"name": "PitTagDec",
+				"type": "STRING"
+			},
+			{
+				"description": "Detection Notes",
+				"mode": "NULLABLE",
+				"name": "DetectionNotes",
+				"type": "STRING"
+			}
+		], 
+		"mode": "REPEATED",
+		"name": "Detection",
+		"type": "RECORD"
+	},
+	{
+		"description": "Notes on the antenna deployment",
+		"mode": "NULLABLE",
+		"name": "AntennaNotes",
+		"type": "STRING"
+	}
+]

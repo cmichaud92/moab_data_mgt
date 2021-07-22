@@ -1,0 +1,50 @@
+[
+	{
+		"description": "Trap ID code",
+		"mode": "REQUIRED",
+		"name": "TrapID",
+		"type": "STRING"
+	},
+	{
+		"description": "Larval Fish Lab ID code",
+		"mode": "NULLABLE",
+		"name": "LarvalFishLabID",
+		"type": "STRING"
+	},
+	{
+        "description": "UCRB Species abbreviation",
+        "mode": "REQUIRED",
+        "name": "SpeciesCode",
+        "type": "STRING"
+    },
+    {
+		"description": "Larval fish count (number of specimens comprising the record)",
+		"mode": "NULLABLE",
+		"name": "LarvalFishCount",
+		"type": "INTEGER"
+	},
+	{
+		"description": "Individual larval fish total length",
+		"mode": "NULLABLE",
+		"name": "TotalLength_mm",
+		"type": "FLOAT"
+	},
+	{
+		"description": "Batched larval fish minimum total length",
+		"mode": "NULLABLE",
+		"name": "MinimumTotalLength_mm",
+		"type": "FLOAT"
+	},
+	{
+		"description": "Batched larval fish maximum total length",
+		"mode": "NULLABLE",
+		"name": "MaximumTotalLength_mm",
+		"type": "FLOAT"
+	},
+	{
+		"description": "Larval fish lab's notes",
+		"mode": "NULLABLE",
+		"name": "LabNotes",
+		"type": "STRING"
+	}
+]

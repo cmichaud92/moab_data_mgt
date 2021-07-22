@@ -1,0 +1,63 @@
+[
+	{
+		"description": "USGS gauge station ID",
+		"mode": "REQUIRED",
+		"name": "StationID",
+		"type": "STRING"
+	},
+	{
+		"description": "USGS gauge station name",
+		"mode": "REQUIRED",
+		"name": "StationName",
+		"type": "STRING"
+	},
+	{
+		"description": "UCRB program river code",
+		"mode": "REQUIRED",
+		"name": "RiverCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Gauge station location x coordinate",
+		"mode": "REQUIRED",
+		"name": "StationLocation_X",
+		"type": "FLOAT"
+	},
+	{
+		"description": "Gauge station location y coordinate",
+		"mode": "REQUIRED",
+		"name": "StationLocation_Y",
+		"type": "FLOAT"
+	},
+	{
+		"description": "Gauge station location EPSG code",
+		"mode": "REQUIRED",
+		"name": "StationEPSG",
+		"type": "FLOAT"
+	},
+	{
+		"fields": [
+			{
+				"description": "Observation datetime, timezone = 'America/Denver'",
+				"mode": "NULLABLE",
+				"name": "ObservationDateTime_Local",
+				"type": "DATETIME"
+			},
+			{
+				"description": "Discharge measured in cubic feet per second (CFS)",
+				"mode": "NULLABLE",
+				"name": "Discharge_CFS",
+				"type": "INTEGER"
+			},
+			{
+				"description": "Water temperature measured in degrees Celsius",
+				"mode": "NULLABLE",
+				"name": "WaterTemperature_C",
+				"type": "FLOAT"
+			}
+		],
+		"mode": "REPEATED",
+		"name": "WaterData",
+		"type": "RECORD"
+	}
+]

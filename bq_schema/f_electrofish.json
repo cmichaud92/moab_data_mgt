@@ -1,0 +1,291 @@
+[
+  {
+    "description": "Unique site identifier",
+    "mode": "REQUIRED",
+    "name": "SiteID",
+    "type": "STRING"
+  },
+  {
+    "description": "UCRB program study code",
+    "mode": "REQUIRED",
+    "name": "StudyCode",
+    "type": "STRING"
+  },
+  {
+    "description": "UCRB program waterbody code",
+    "mode": "REQUIRED",
+    "name": "RiverCode",
+    "type": "STRING"
+  },
+  {
+    "description": "Pass or effort identifier",
+    "mode": "NULLABLE",
+    "name": "PassIdentifier",
+    "type": "STRING"
+  },
+  {
+    "description": "Estimated sample start location - Belknap river miles",
+    "mode": "NULLABLE",
+    "name": "StartLocation_BelknapMiles",
+    "type": "FLOAT"
+  },
+  {
+    "description": "Estimated sample end location - Belknap river miles",
+    "mode": "NULLABLE",
+    "name": "EndLocation_BelknapMiles",
+    "type": "FLOAT"
+  },
+  {
+    "description": "Sampling start date-time stored in UTC",
+    "mode": "NULLABLE",
+    "name": "StartDateTime_UTC",
+    "type": "TIMESTAMP"
+  },
+  {
+    "description": "Sampling end timestamp (partition on year), timezone = 'UTC'",
+    "mode": "NULLABLE",
+    "name": "EndDateTime_UTC",
+    "type": "TIMESTAMP"
+  },
+  {
+    "description": "Shoreline sampled",
+    "mode": "NULLABLE",
+    "name": "Shoreline",
+    "type": "STRING"
+  },
+  {
+    "description": "Sample effort measured in seconds",
+    "mode": "NULLABLE",
+    "name": "Effort_Seconds",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Name of boat used in sampling",
+    "mode": "NULLABLE",
+    "name": "BoatName",
+    "type": "STRING"
+  },
+  {
+    "description": "Initials of crew",
+    "mode": "NULLABLE",
+    "name": "CrewNames",
+    "type": "STRING"
+  },
+  {
+    "description": "Observations related to this site",
+    "mode": "NULLABLE",
+    "name": "Notes",
+    "type": "STRING"
+  },
+  {
+    "description": "SiteID associated with raw or historic data, if different than SiteID",
+    "mode": "NULLABLE",
+    "name": "OriginalSiteID",
+    "type": "STRING"
+  },
+  {
+    "fields": [
+      {
+        "description": "Main channel ambient conductivity measured in microsiemens",
+        "name": "AmbientConductivityMain_uS",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Main channel specific conductivity measured in microsiemens",
+        "name": "SpecificConductivityMain_uS",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Main channel water temperature measured in degrees celsius",
+        "name": "WaterTemperatureMain_C",
+        "type": "FLOAT"
+      },
+      {
+        "description": "Main channel secchi - depth of maximum visibility measured in milimeters",
+        "name": "SecchiDepthMain_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Interesting observations related to water quality",
+        "name": "Notes",
+        "type": "STRING"
+      }
+    ],
+    "mode": "REPEATED",
+    "name": "WaterQuality",
+    "type": "RECORD"
+  },
+  {
+    "fields": [
+      {
+        "description": "Encounter timestamp, timezone = 'UTC'",
+        "name": "EncounterDateTime_UTC",
+        "type": "TIMESTAMP"
+      },
+      {
+        "description": "Estimated encounter location - Belknap river miles",
+        "name": "EncounterLocation_BelknapMiles",
+        "type": "FLOAT"
+      },
+      {
+        "description": "UCRB Species abbreviation",
+        "name": "SpeciesCode",
+        "type": "STRING"
+      },
+      {
+        "description": "Number of individual fish represented by this record",
+        "name": "FishCount",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Total length measured in milimeters",
+        "name": "TotalLength_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Standard length measured in milimeters",
+        "name": "StandardLength_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Fish weight measured in grams",
+        "name": "Weight_g",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Sex of individual if discernible",
+        "name": "Sex",
+        "type": "STRING"
+      },
+      {
+        "description": "Certainty associated with sex designation, pikeminnow only",
+        "name": "SexCertainty",
+        "type": "STRING"
+      },
+      {
+        "description": "Reproductive condition - the individual is ripe",
+        "name": "IsRipe",
+        "type": "BOOLEAN"
+      },
+      {
+        "description": "Tuberculate - native cyprinids only",
+        "name": "IsTuberculate",
+        "type": "BOOLEAN"
+      },
+      {
+        "description": "Count of dorsal rays - Gila spp only",
+        "name": "DorsalRayCount",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Count of anal fin rays - Gila spp only",
+        "name": "AnalRayCount",
+        "type": "INTEGER"
+      },
+      {
+        "description": "State of individual following sampling encounter - UCRB program code",
+        "name": "DispositionCode",
+        "type": "STRING"
+      },
+      {
+        "description": "Encounter location - X coordiante, stored in EPSG 4326",
+        "name": "EncounterEasting_UTM",
+        "type": "FLOAT"
+      },
+      {
+        "description": "Encounter location - Y coordiante, stored in EPSG 4326",
+        "name": "EncounterNorthing_UTM",
+        "type": "FLOAT"
+      },
+      {
+        "description": "Encounter location - EPSG associated with the location coordnates, shoudl be EPSG 4326",
+        "name": "EncounterEPSGCode",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Additional observations related to the individual fish",
+        "name": "Notes",
+        "type": "STRING"
+      },
+      {
+        "fields": [
+          {
+            "description": "Pittag identification string (pittag number)",
+            "name": "PitTagString",
+            "type": "STRING"
+          },
+          {
+            "description": "This encounter is a recapture",
+            "name": "IsPitTagRecapture",
+            "type": "BOOLEAN"
+          },
+          {
+            "description": "Frequency/description of tag (134 or 400)",
+            "name": "PitTagType",
+            "type": "STRING"
+          },
+          {
+            "description": "Observations regarding the pittag",
+            "name": "Notes",
+            "type": "STRING"
+          }
+        ],
+        "mode": "REPEATED",
+        "name": "PitTag",
+        "type": "RECORD"
+      },
+      {
+        "fields": [
+          {
+            "description": "Floy tag identification string (floy number)",
+            "name": "FloyTagString",
+            "type": "STRING"
+          },
+          {
+            "description": "Floy tag color abbreviation",
+            "name": "FloyTagColorCode",
+            "type": "STRING"
+          },
+          {
+            "description": "This encounter is a recapture",
+            "name": "IsFloyTagRecapture",
+            "type": "BOOLEAN"
+          },
+          {
+            "description": "Observations regarding the floytag",
+            "name": "Notes",
+            "type": "STRING"
+          }
+        ],
+        "mode": "REPEATED",
+        "name": "FloyTag",
+        "type": "RECORD"
+      },
+      {
+        "fields": [
+          {
+            "description": "Unique identifier associated with this biological sample",
+            "name": "VialString",
+            "type": "STRING"
+          },
+          {
+            "description": "The type of biological sample",
+            "name": "VialTypeCode",
+            "type": "STRING"
+          },
+          {
+            "description": "Observations related to this biological sample",
+            "name": "Notes",
+            "type": "STRING"
+          }
+        ],
+        "mode": "REPEATED",
+        "name": "Vial",
+        "type": "RECORD"
+      }
+    ],
+    "mode": "REPEATED",
+    "name": "FishData",
+    "type": "RECORD"
+  }
+]

@@ -1,0 +1,20 @@
+[
+	{
+		"description": "UCRB program gear code",
+		"mode": "REQUIRED",
+		"name": "GearCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Gear name or description",
+		"mode": "REQUIRED",
+		"name": "GearName",
+		"type": "STRING"
+	},
+	{
+		"description": "Gear type or classification",
+		"mode": "REQUIRED",
+		"name": "GearType",
+		"type": "STRING"
+	}
+]

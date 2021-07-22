@@ -1,0 +1,14 @@
+[
+	{
+		"description": "MFO code for vial contents",
+		"mode": "REQUIRED",
+		"name": "VialCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Description of the vial contents",
+		"mode": "REQUIRED",
+		"name": "VialDescription",
+		"type": "STRING"
+	}		
+]

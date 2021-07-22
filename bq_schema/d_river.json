@@ -1,0 +1,26 @@
+[
+	{
+		"description": "UCRB program river code",
+		"mode": "REQUIRED",
+		"name": "RiverCode",
+		"type": "STRING"
+	},
+	{
+		"description": "River name",
+		"mode": "REQUIRED",
+		"name": "RiverName",
+		"type": "STRING"
+	},
+	{
+		"description": "UCRB program basin code",
+		"mode": "NULLABLE",
+		"name": "BasinCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Basin Name",
+		"mode": "NULLABLE",
+		"name": "BasinName",
+		"type": "STRING"
+	}			
+]

@@ -1,0 +1,38 @@
+[
+	{
+		"description": "UCRB program species code",
+		"mode": "REQUIRED",
+		"name": "SpeciesCode",
+		"type": "STRING"
+	},
+	{
+		"description": "Species common name",
+		"mode": "REQUIRED",
+		"name": "CommonName",
+		"type": "STRING"
+	},
+	{
+		"description": "Species scientific name",
+		"mode": "REQUIRED",
+		"name": "ScientificName",
+		"type": "STRING"
+	},
+	{
+		"description": "Taxonomic family affiliation",
+		"mode": "NULLABLE",
+		"name": "Family",
+		"type": "STRING"
+	},
+	{
+		"description": "The species native/nonnative status within the UCRB?",
+		"mode": "NULLABLE",
+		"name": "Nativity",
+		"type": "STRING"
+	},
+	{
+		"description": "Is this a hybridized species?",
+		"mode": "NULLABLE",
+		"name": "IsHybrid",
+		"type": "BOOLEAN"
+	}
+]

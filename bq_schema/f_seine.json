@@ -1,0 +1,465 @@
+[
+  {
+    "description": "Unique site identifier",
+    "mode": "REQUIRED",
+    "name": "SiteID",
+    "type": "STRING"
+  },
+  {
+    "description": "UCRB program study code",
+    "mode": "REQUIRED",
+    "name": "StudyCode",
+    "type": "STRING"
+  },
+  {
+    "description": "UCRB program river code",
+    "mode": "REQUIRED",
+    "name": "RiverCode",
+    "type": "STRING"
+  },
+  {
+    "description": "Pass or effort identifier",
+    "mode": "NULLABLE",
+    "name": "PassIdentifier",
+    "type": "STRING"
+  },
+  {
+    "description": "Date of site visit (partition on year), timezone = 'America/Denver'",
+    "mode": "NULLABLE",
+    "name": "SiteDate_Local",
+    "type": "DATE"
+  },
+  {
+    "description": "Estimated site location - Belknap-miles",
+    "mode": "NULLABLE",
+    "name": "SiteLocation_BelknapMiles",
+    "type": "FLOAT"
+  },
+  {
+    "description": "Primary habitat type of site - UCRB program code",
+    "mode": "NULLABLE",
+    "name": "PrimaryHabitatCode",
+    "type": "STRING"
+  },
+  {
+    "description": "Secondary habitat type of site - UCRB program code",
+    "mode": "NULLABLE",
+    "name": "SecondaryHabitatCode",
+    "type": "STRING"
+  },
+  {
+    "description": "Length of site (habitat) measured in meters",
+    "mode": "NULLABLE",
+    "name": "SiteLength_m",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Width of site (habitat) measured in meters",
+    "mode": "NULLABLE",
+    "name": "SiteWidth_m",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Maximum depth of site (habitat) measured in millimeters",
+    "mode": "NULLABLE",
+    "name": "SiteMaxDepth_mm",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Ordinal position of habitat - ISMP (primary = 1, secondary = 2...)",
+    "mode": "NULLABLE",
+    "name": "SiteOrdinalPosition",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Is algae present and hampering sampling",
+    "mode": "NULLABLE",
+    "name": "IsAlgaePresent",
+    "type": "BOOLEAN"
+  },
+  {
+    "description": "Initials of crew members",
+    "mode": "NULLABLE",
+    "name": "CrewNames",
+    "type": "STRING"
+  },
+  {
+    "description": "Site location - X coordiante, stored in UTM",
+    "mode": "NULLABLE",
+    "name": "SiteEasting_UTM",
+    "type": "FLOAT"
+  },
+  {
+    "description": "Site location - Y coordiante, stored in UTM",
+    "mode": "NULLABLE",
+    "name": "SiteNorthing_UTM",
+    "type": "FLOAT"
+  },
+  {
+    "description": "Site location - EPSG associated with UTM coordnates",
+    "mode": "NULLABLE",
+    "name": "SiteEPSGCode",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Notes on the site",
+    "mode": "NULLABLE",
+    "name": "Notes",
+    "type": "STRING"
+  },
+  {
+    "fields": [
+      {
+        "description": "Main channel ambient conductivity measured in microsiemens",
+        "name": "AmbientConductivityMain_uS",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Main channel specific conductivity measured in microsiemens",
+        "name": "SpecificConductivityMain_uS",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Main channel water temperature measured in degrees celsius",
+        "name": "WaterTemperatureMain_C",
+        "type": "FLOAT"
+      },
+      {
+        "description": "Main channel secchi - depth of maximum visibility measured in milimeters",
+        "name": "SecchiDepthMain_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Habitat ambient conductivity measured in microsiemens",
+        "mode": "NULLABLE",
+        "name": "AmbientConductivityHabitat_uS",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Habitat specific conductivity measured in microsiemens",
+        "mode": "NULLABLE",
+        "name": "SpecificConductivityHabitat_uS",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Habitat water temperature measured in degrees celsius",
+        "mode": "NULLABLE",
+        "name": "WaterTemperatureHabitat_C",
+        "type": "FLOAT"
+      },
+      {
+        "description": "Habitat secchi - depth of maximum visibility measured in millimeters",
+        "mode": "NULLABLE",
+        "name": "SecchiDepthHabitat_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Interesting observations related to water quality",
+        "name": "Notes",
+        "type": "STRING"
+      }
+    ],
+    "mode": "REPEATED",
+    "name": "WaterQuality",
+    "type": "RECORD"
+  },  
+  {
+    "fields": [
+      {
+        "description": "Unique haul identifier",
+        "name": "HaulID",
+        "type": "STRING"
+      },
+      {
+        "description": "Haul timestamp, timezone = 'UTC'",
+        "name": "HaulDateTime_UTC",
+        "type": "TIMESTAMP"
+      },
+      {
+        "description": "UCRB program gear code",
+        "name": "GearCode",
+        "type": "STRING"
+      },
+      {
+        "description": "Length of seine haul measured in meters",
+        "name": "HaulLength_m",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Width of seine haul measured in meters",
+        "name": "HaulWidth_m",
+        "type": "FLOAT"
+      },
+      {
+        "description": "Haul method used - ISMP (Across, Parallel)",
+        "name": "HaulMethodType",
+        "type": "STRING"
+      },
+      {
+        "description": "Mean depth of haul, measured in millimeters",
+        "name": "HaulMeanDepth_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Primary substrate encountered in haul",
+        "name": "PrimarySubstrate",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Depth taken at location 1, measured in millimeters - ISMP",
+        "name": "DepthAtLocation1_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Primary substrate at location 1, abbreviation - ISMP",
+        "name": "PrimarySubstrateAtLocation1",
+        "type": "STRING"
+      },
+      {
+        "description": "Secondary substrate at location 1, abbreviation - ISMP",
+        "name": "SecondarySubstrateAtLocation1",
+        "type": "STRING"
+      },
+      {
+        "description": "Depth taken at location 2, measured in millimeters - ISMP",
+        "name": "DepthAtLocation2_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Primary substrate at location 2, abbreviation - ISMP",
+        "name": "PrimarySubstrateAtLocation2",
+        "type": "STRING"
+      },
+      {
+        "description": "Secondary substrate at location 2, abbreviation - ISMP",
+        "name": "SecondarySubstrateAtLocation2",
+        "type": "STRING"
+      },
+      {
+        "description": "Maximum haul depth, measured in millimeters - ISMP",
+        "name": "MaximumDepth_mm",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Primary substrate at location of maximum depth, UCRM program code - ISMP",
+        "name": "PrimarySubstrateAtMaximumDepth",
+        "type": "STRING"
+      },
+      {
+        "description": "Secondary substrate at location of maximum depth, UCRB program code - ISMP",
+        "name": "SecondarySubstrateAtMaximumDepth",
+        "type": "STRING"
+      },
+      {
+        "description": "Mud depth classification - ISMP",
+        "name": "MudDepthClass",
+        "type": "INTEGER"
+      },
+      {
+        "description": "Are red shiners present in haul - 160se",
+        "name": "IsRedShinerPresent",
+        "type": "STRING"
+      },
+      {
+        "description": "Are sand shiners present in haul - 160se",
+        "name": "IsSandShinerPresent",
+        "type": "STRING"
+      },
+      {
+        "description": "Are fathead minnows present in haul - 160se",
+        "name": "IsFatHeadPresent",
+        "type": "STRING"
+      },
+      {
+        "description": "Haul notes",
+        "name": "Notes",
+        "type": "STRING"
+      },
+      {
+        "fields": [
+          {
+            "description": "UCRB program species code",
+            "name": "SpeciesCode",
+            "type": "STRING"
+          },
+          {
+            "description": "Number of individual fish represented by this record",
+            "name": "FishCount",
+            "type": "INTEGER"
+          },
+          {
+            "description": "Total length measured in milimeters",
+            "name": "TotalLength_mm",
+            "type": "INTEGER"
+          },
+          {
+            "description": "Fish weight measured in grams",
+            "name": "Weight_g",
+            "type": "INTEGER"
+          },
+          {
+            "description": "Sex of individual if discernible",
+            "name": "Sex",
+            "type": "STRING"
+          },
+          {
+            "description": "Reproductive condition - the individual is ripe",
+            "name": "IsRipe",
+            "type": "BOOLEAN"
+          },
+          {
+            "description": "Tuberculate - native cyprinids only",
+            "name": "IsTuberculate",
+            "type": "BOOLEAN"
+          },
+          {
+            "description": "Count of dorsal rays - Gila spp only",
+            "name": "DorsalRayCount",
+            "type": "INTEGER"
+          },
+          {
+            "description": "Count of anal fin rays - Gila spp only",
+            "name": "AnalRayCount",
+            "type": "INTEGER"
+          },
+          {
+            "description": "State of individual following sampling encounter - UCRB program code",
+            "name": "DispositionCode",
+            "type": "STRING"
+          },
+          {
+            "description": "Additional observations related to the individual fish",
+            "name": "Notes",
+            "type": "STRING"
+          },
+          {
+            "fields": [
+              {
+                "description": "Pittag identification string (pittag number)",
+                "name": "PitTagString",
+                "type": "STRING"
+              },
+              {
+                "description": "This encounter is a recapture",
+                "name": "IsPitTagRecapture",
+                "type": "BOOLEAN"
+              },
+              {
+                "description": "Frequency/description of tag (134 or 400)",
+                "name": "PitTagType",
+                "type": "STRING"
+              },
+              {
+                "description": "Observations regarding the pittag",
+                "name": "Notes",
+                "type": "STRING"
+              }
+            ],
+            "mode": "REPEATED",
+            "name": "PitTag",
+            "type": "RECORD"
+          },
+          {
+            "fields": [
+              {
+                "description": "Floy tag identification string (floy number)",
+                "name": "FloyTagString",
+                "type": "STRING"
+              },
+              {
+                "description": "Floy tag color MFO code",
+                "name": "FloyTagColorCode",
+                "type": "STRING"
+              },
+              {
+                "description": "This encounter is a recapture",
+                "name": "IsFloyTagRecapture",
+                "type": "BOOLEAN"
+              },
+              {
+                "description": "Observations regarding the floytag",
+                "name": "Notes",
+                "type": "STRING"
+              }
+            ],
+            "mode": "REPEATED",
+            "name": "FloyTag",
+            "type": "RECORD"
+          },
+          {
+            "fields": [
+              {
+                "description": "Unique identifier associated with this biological sample",
+                "name": "VialString",
+                "type": "STRING"
+              },
+              {
+                "description": "The type of biological sample",
+                "name": "VialTypeCode",
+                "type": "STRING"
+              },
+              {
+                "description": "Observations related to this biological sample",
+                "name": "Notes",
+                "type": "STRING"
+              }
+            ],
+            "mode": "REPEATED",
+            "name": "FishVial",
+            "type": "RECORD"
+          }
+        ],
+        "mode": "REPEATED",
+        "name": "FishData",
+        "type": "RECORD"
+      },
+  {
+    "fields": [
+      {
+        "description": "Unique identifier associated with this biological sample",
+        "name": "VialString",
+        "type": "STRING"
+      },
+      {
+        "description": "The type of biological sample",
+        "name": "VialTypeCode",
+        "type": "STRING"
+      },
+      {
+        "description": "Observations related to this biological sample",
+        "name": "Notes",
+        "type": "STRING"
+      }
+    ],
+    "mode": "REPEATED",
+    "name": "HaulVial",
+    "type": "RECORD"
+  }
+    ],
+    "mode": "REPEATED",
+    "name": "HaulData",
+    "type": "RECORD"
+  },
+  {
+  "fields": [
+  {
+    "description": "Unique identifier associated with this biological sample",
+    "name": "VialString",
+    "type": "STRING"
+  },
+  {
+    "description": "The type of biological sample",
+    "name": "VialTypeCode",
+    "type": "STRING"
+  },
+  {
+    "description": "Observations related to this biological sample",
+    "name": "Notes",
+    "type": "STRING"
+  }
+    ],
+    "mode": "REPEATED",
+    "name": "SiteVial",
+    "type": "RECORD"
+  }
+]
