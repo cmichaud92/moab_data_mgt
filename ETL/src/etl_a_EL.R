@@ -17,7 +17,7 @@
   library(DBI)
 }
 # source functions
-source("./src-master/EL_qcfx.R")
+source("./etl/src/qcfx_EL.R")
 
 # build "exclude"
 `%!in%` <- Negate(`%in%`)
@@ -29,27 +29,28 @@ source("./src-master/EL_qcfx.R")
 # Study
 STUDY <- "123a"
 
-# Data set location: Defaults to ./data
-DATA_DIRECTORY <- "./data"
-
 # Data year (should be current year)
-# YEAR <- year(now())
-YEAR <- 2020
-
-# Specify config used default or development
-CONFIG <- "development"
+YEAR <- year(now())
 
 
-#----------------------------------
-# Config
-#----------------------------------
 
-Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
+# ----- Specify the configuration environment -----
 
-config <- config::get(value = paste0(STUDY, "_config"),
-                      file = "T:/My Drive/projects/etc/config.yml")
+# default = authenticates to PI's account
 
-config::is_active("development")
+CONFIG = "management"
+# CONFIG = "development"
+
+
+
+# ----- Fetch config based on execution env. -----
+{
+  Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
+  config <- config::get(value = paste0(STUDY, "_config"),
+                        file = "T:/Shared drives/DNR_MoabFieldOffice/Data_mgt/etc/config_proj.yml")
+
+}
+
 
 
 #--------------------------------------
@@ -65,11 +66,11 @@ gs4_auth(token = drive_token())
  # ----- Locate QAQC sheet -----
 if (CONFIG == "development") {
 
-  qc_sheet <- drive_get(paste(YEAR, "dev", config$proj, "QAQC", sep = "_"))
+  qc_sheet <- drive_get(paste(YEAR, "dev", config$study, "QAQC", sep = "_"))
 
 } else {
 
-  qc_sheet <- drive_get(paste(YEAR, config$proj, "QAQC", sep = "_"))
+  qc_sheet <- drive_get(paste(YEAR, config$study, "QAQC", sep = "_"))
 
 }
 
