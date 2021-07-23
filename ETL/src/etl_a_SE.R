@@ -133,51 +133,45 @@ meta <- tibble(
 
 # Site data
 if ("site" %in% names(data)) {
-  site_tmp <- map_df(data[grepl("site", names(data))], bind_rows) %>%
+  tmp_site <- map_df(data[grepl("site", names(data))], bind_rows) %>%
     mutate_all(na_if, "Z")                                                # Converts "Z"s to NA
 } else {
   warning("No `site` data present")
 }
 
 
-# Water data
-if ("water" %in% names(data)) {
-  water_tmp <- map_df(data[grepl("water", names(data))], bind_rows) %>%
-    mutate_at(c("cond_amb", "cond_spec", "rvr_temp", "secchi"),
-              function(x) {ifelse(x == 0, NA, x)}) %>%                    # Converts 0's to NA
-    mutate_all(na_if, "Z")                                                # Converts "Z"s to NA
+# Haul data
+if ("haul" %in% names(data)) {
+  tmp_haul <- map_df(data[grepl("haul", names(data))], bind_rows) %>%
+  mutate(across(where(is.character), na_if, "Z"))                                                # Converts "Z"s to NA
 } else {
   message("No `water` data present")
 }
 
 # Fish data
 if ("fish" %in% names(data)) {
-  fish_tmp <- map_df(data[grepl("fish", names(data))], bind_rows) %>%
-    mutate_at(c("ilat", "ilon", "tot_length", "st_length", "weight"),     # Converts 0's to NA
-              function(x) {ifelse(x == 0, NA, x)}) %>%
-    mutate_all(na_if, "Z") %>%                                            # Converts "Z"s to NA
-    mutate(ray_ct = na_if(ray_ct, "N"),
-           tubercles = ifelse(species %in% spp_nat, tubercles, NA),        # Cleans up additional vars
-           rep_cond = toupper(rep_cond))
+  tmp_fish <- map_df(data[grepl("fish", names(data))], bind_rows) %>%
+    mutate(across(c(tot_length, weight),                                  # Converts 0's to NA
+              function(x) {ifelse(x == 0, NA, x)}),
+           across(where(is.character), na_if, "Z"))                        # Converts "Z"s to NA
 } else {
   warning("No `fish` data present")
 }
 
-# Pittag
-if ("pittag" %in% names(data)) {
-  pit_tmp <- map_df(data[grepl("pittag", names(data))], bind_rows) %>%
-    filter(!is.na(pit_num)) %>%
-    mutate_all(na_if, "Z")                                               # Converts "Z"s to NA
+# Count
+if ("count" %in% names(data)) {
+  tmp_ct <- map_df(data[grepl("count", names(data))], bind_rows) %>%
+    filter(!is.na(species)) %>%
+    mutate(across(where(is.character), na_if, "Z"))                                               # Converts "Z"s to NA
 } else {
   message("No `pittag` data present")
 }
 
-# Floytag
-if ("floytag" %in% names(data)) {
-  floy_tmp <- map_df(data[grepl("floytag", names(data))], bind_rows) %>%
-    filter(!is.na(floy_num)) %>%
-    mutate_all(na_if, "Z") %>%
-    select(-floy_id)
+# Vial
+if ("vial" %in% names(data)) {
+  tmp_vial <- map_df(data[grepl("vial", names(data))], bind_rows) %>%
+    filter(!is.na(vial_num)) %>%
+    mutate(across(where(is.character), na_if, "Z"))
 } else {
   message("No `floytag` data present")
 }
@@ -189,6 +183,7 @@ if ("vial" %in% names(data)) {
 } else {
   message("No `vial` data present")
 }
+
 #------------------------------
 # Modify data
 #------------------------------
