@@ -32,7 +32,15 @@ STUDY <- "160se"
 # Data year (should be current year)
 YEAR <- year(now())
 
-TARGET <- c("RZ")
+if (grepl("^160", STUDY)) {
+
+  TARGET <- c("RZ")
+
+} else {
+
+  TARGET <- c("CS")
+
+}
 
 # ----- Specify the configuration environment -----
 
@@ -74,25 +82,28 @@ if (CONFIG == "development") {
 
 }
 
+# ----- Determine nrows for filter -----
+
 if (nrow(qc_sheet) > 1) {
 
   stop("Problem with google sheets")
 
-}
+  } else if (nrow(qc_sheet) == 0) {
 
-# Adds 1 to the last sample number currently in the gsheet
-# If new sheet, start number = 1
-
-
-if (nrow(qc_sheet) == 0) {
   last_num <- 0
-} else if (nrow(qc_sheet) == 1) {
+
+  } else if (nrow(qc_sheet) == 1) {
   tmp <- read_sheet(qc_sheet, range = "site")
   last_num <- tmp %>%
     pull(site_id) %>%
     max() %>%
     str_sub(start = -3) %>%
     as.integer()
+
+  } else {
+
+  stop("Problem with google sheets")
+
 }
 
 
@@ -133,8 +144,11 @@ meta <- tibble(
 
 # Site data
 if ("site" %in% names(data)) {
+
   tmp_site <- map_df(data[grepl("site", names(data))], bind_rows) %>%
-    mutate_all(na_if, "Z")                                                # Converts "Z"s to NA
+    mutate(across(where(is.character), na_if, "Z"),
+           across(where(is.numeric), na_if, 0))
+
 } else {
   warning("No `site` data present")
 }
@@ -173,7 +187,7 @@ if ("vial" %in% names(data)) {
     filter(!is.na(vial_num)) %>%
     mutate(across(where(is.character), na_if, "Z"))
 } else {
-  message("No `floytag` data present")
+  message("No `vial` data present")
 }
 
 # Vial
@@ -188,147 +202,190 @@ if ("vial" %in% names(data)) {
 # Modify data
 #------------------------------
 
+tm_stp_haul <- select(tmp_site, key_a, date) %>%
+  inner_join(select(tmp_haul, key_a, key_aa, starttime), by = "key_a") %>%
+  mutate(ts = mdy_hms(paste(date, starttime)),
+         .keep = "unused") %>%
+  arrange(ts) %>%
+  mutate(h_idx = row_number())
+
+tm_stp <- tm_stp_haul %>%
+  group_by(key_a) %>%
+  summarise(ts = min(ts),
+            .groups = "drop") %>%
+  arrange(ts) %>%
+  mutate(s_idx = row_number()) %>%
+  select(-ts) %>%
+  left_join(tm_stp_haul, by = "key_a")
+
+attributes(tm_stp$ts)
+
 # Create sample_number and index,
 # Create fnl table structures
 
 # Site table
-if (exists("site_tmp")) {
-  site <- site_tmp %>%
-    mutate(startdatetime = as.POSIXct(paste(mdy(date), starttime)),         # Replace `date` and `time` with `datetime`
-           enddatetime = as.POSIXct(paste(mdy(date), endtime)),
-           across(where(is.POSIXct), force_tz, tzone = "UTC"),
-           el_sec = effort_sec + (effort_min * 60),                         # Convert effort to seconds
-           project = config$study,
-           year = year(startdatetime)) %>%                                  # Add year varaible
+if (exists("tmp_site")) {
 
-    arrange(enddatetime) %>%                                              # this orders data for indexing
+  site <- tmp_site %>%
+    inner_join(distinct(tm_stp, key_a, s_idx), by = "key_a") %>%
+    mutate(study = config$study,
+           date = mdy(date),
+           year = year(date)) %>%                                  # Add year varaible
 
-    mutate(s_index = row_number(),                                          # add index for qc/site_id
-#           site_num_crct = s_index + (start_num - 1),
-           site_id = paste(project,
-                           year(startdatetime),                    # Create sample number
-                           str_pad(s_index, 3, "left", "0"),
+
+    mutate(id_site = paste(study,
+                           year(date),                    # Create sample number
+                           str_pad(s_idx, 3, "left", "0"),
                            sep = "_")) %>%
 
     left_join(tbl_rch, by = c("reach" = "cd_rch")) %>%                   # Add rvr_code variable
 
-    select(s_index, site_id, project,
-           year, river = cd_rvr,
-           reach, pass,
-           startdatetime, enddatetime,
-           start_rmi, end_rmi,
-           shoreline, el_sec,
-           boat, crew,
-           site_notes, key_a) %>%
+    select(id_site, study,
+           year,
+           pass,
+           cd_rvr,
+           cd_rch = reach,
+           date,
+           rmi,
+           matches("mc_|hab_"),
+           algae,
+           ilat,
+           ilon,
+           crew,
+           site_notes, s_idx, key_a) #%>%
 
-    mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),  # Simple Belknap correction
-                                                          x + 120, x)})
+  samp_n <- select(site, id_site, key_a) %>%
+    left_join(tm_stp, by = "key_a") %>%
+    arrange(ts) %>%
+    group_by(id_site) %>%
+    mutate(id_haul = paste(id_site, str_pad(row_number(), width = 2, pad = "0"), sep = "."))# Create site_id df and apply to all tables.
 
+  } else {
 
-
-  samp_n <- select(site, key_a, site_id, s_index, t_stamp = enddatetime, reach)       # Create site_id df and apply to all tables.
-} else {
-  warning("No `site` data present")
+  stop("No `site` data present")
 }
 
-attributes(samp_n$t_stamp)
+attributes(samp_n$ts)
 
-attributes(site$startdatetime)
-attributes(site$enddatetime)
-# Water_qual table
-if (exists("water_tmp")) {
-  water <- left_join(water_tmp, samp_n, by = "key_a") %>%
-    rename(water_notes = h2o_notes) %>%
-    arrange(t_stamp) %>%
-    select(key_ab, s_index, site_id,
-           cond_amb, cond_spec,
-           rvr_temp, secchi,
-           water_notes, key_a)
-} else {
-  message("No `water` data present")
+
+# Haul table
+if (exists("tmp_haul")) {
+  haul <- tmp_haul %>%
+    left_join(samp_n, by = c("key_a", "key_aa")) %>%
+    filter(haul_width > 0 &
+             haul_lengt > 0 &
+             avg_dep > 0) %>%
+    select(id_haul,
+           id_site,
+           cd_gear = gear,
+           haul_datetime = ts,
+           haul_length = haul_lengt,
+           haul_width,
+           haul_avg_depth = avg_dep,
+           cd_sub = substrate,
+           rs, ss, fh,
+           haul_notes,
+           s_idx,
+           h_idx,
+           key_a,
+           key_aa,
+           s_idx
+           )
+  } else {
+
+  stop ("No `haul` data present")
+
+}
+
+
+# Count data
+
+if (exists("tmp_ct")) {
+
+  count <- tmp_ct %>%
+    filter(!is.na(species) |
+             !is.na(fish_count)) %>%
+    group_by(key_a, key_aa, species, disp) %>%
+    summarise(across(fish_count, sum),
+              .groups = "drop") %>%
+    left_join(samp_n, by = c("key_a", "key_aa")) %>%
+    select(id_site,
+           id_haul,
+           cd_spp = species,
+           n_fish = fish_count,
+           cd_disp = disp,
+           key_a,
+           key_aa,
+           s_idx)
+
+  } else {
+
+  message("No count data present")
 }
 
 # Fish table
-if (exists("fish_tmp")) {
-  fish_1 <- left_join(fish_tmp, samp_n, by = "key_a") %>%
-    mutate(datetime = as.POSIXct(paste(as.Date(t_stamp), time)),
-           across(datetime, force_tz, tzone = "UTC")) %>%
-    arrange(datetime) %>%
-    mutate(f_index = row_number()) %>%
-    mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),
-                                                          x + 120, x)}) %>%
-    select(f_index,
+if (exists("tmp_fish")) {
+
+  fish <- left_join(tmp_fish, samp_n, by = c("key_a", "key_aa")) %>%
+    arrange(ts) %>%
+    mutate(f_idx = row_number(),
+           n_fish = 1) %>%
+
+    select(id_haul,
+           id_site,
+           cd_spp = species,
+           n_fish,
+           tot_length,
+           weight,
+           cd_disp = disp,
+           photo_num,
+           fish_notes,
+           key_a,
            key_aa,
-           s_index,
-           site_id, reach,
-           rmi, datetime,
-           species, tot_length,
-           weight, sex,
-           rep_cond, tubercles,
-           ray_ct, disp,
-           fish_notes, key_a,
-           ilon, ilat)
+           key_aaa,
+           s_idx)
 
-  fish_sf <- fish_1 %>%                                     # Convert long-lat to UTMs
-    group_by(site_id, rmi) %>%
-    summarise(ilon = mean(ilon, na.rm = TRUE),
-              ilat = mean(ilat, na.rm = TRUE),
-              .groups = "drop") %>%
-    filter(!is.na(ilon)) %>%
-    st_as_sf(coords = c("ilon", "ilat"), crs = 4326) %>%
-    st_transform(crs = 32612) %>%
-    mutate(loc_x = st_coordinates(geometry)[, 1],
-           loc_y = st_coordinates(geometry)[, 2],
-           epsg = 32612) %>%
-    st_drop_geometry() %>%
-    select(site_id, rmi, loc_x, loc_y, epsg)
+  } else {
 
-  fish <- full_join(fish_1, fish_sf, by = c("site_id", "rmi")) %>%
-    select(-c(ilat, ilon))
-} else {
   warning("No `fish` data present")
+
 }
 
-attributes(fish$datetime)
+if (exists("fish") & exists("count")) {
 
-# Pittag table
-if (exists("pit_tmp")) {
-  pittag <- left_join(pit_tmp, samp_n, by = "key_a") %>%
-    left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
-    arrange(datetime) %>%
-    mutate(p_index = row_number(),
-           pit_num = toupper(pit_num)) %>%
-    select(p_index, s_index, key_aaa, key_aa, site_id,
-           species,pit_type, pit_num, pit_recap,
-           pit_notes, key_a)
-} else {
-  message("No `pittag` data present")
+  fish <- fish %>%
+    bind_rows(count) %>%
+    arrange(id_haul)
+
+  } else {
+
+  message("No count data present")
 }
 
-# Floytag table
-if (exists("floy_tmp")) {
-  floytag <- left_join(floy_tmp, samp_n, by = "key_a") %>%
-    left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
-    arrange(datetime) %>%
-    mutate(fl_index = row_number()) %>%
-    select(fl_index, s_index, key_aab, key_aa, site_id,
-           species, floy_color, floy_num, floy_recap,
-           floy_notes)
-} else {
-  message("No `floytag` data present")
-}
 
 # Vial table
-if (exists("vial_tmp")) {
-  vial <- left_join(vial_tmp, samp_n, by = "key_a") %>%
-    left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
-    arrange(datetime) %>%
-    mutate(v_index = row_number()) %>%
-    select(v_index, s_index, key_aac, key_aa, site_id,
-           species, vial_num, vial_type, vial_notes)
-} else {
-  message("No `floytag` data present")
+
+if (exists("tmp_vial")) {
+
+  vial <- left_join(vial_tmp, samp_n, by = c("key_a", "key_aa")) %>%
+    arrange(id_haul) %>%
+    select(id_haul,
+           id_site,
+           vial_num,
+           vial_type,
+           photo_num,
+           vial_notes,
+           key_a,
+           key_aa,
+           key_aac,
+           s_idx)
+
+  } else {
+
+  message("No `vial` data present")
 }
+
+
 
 #------------------------------
 
@@ -340,6 +397,7 @@ sbst_site <- site %>%
 
 sbst_fish <- fish %>%
   filter(s_index > last_num)
+
 #------------------------------
 # QC data.tables
 #------------------------------
