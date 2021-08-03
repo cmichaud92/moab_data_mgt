@@ -84,19 +84,19 @@
     "type": "STRING"
   },
   {
-    "description": "Site location - X coordiante, stored in UTM",
+    "description": "Site location - Longitude, stored in WGS 84",
     "mode": "NULLABLE",
-    "name": "SiteEasting_UTM",
+    "name": "SiteLongitude_DD",
     "type": "FLOAT"
   },
   {
-    "description": "Site location - Y coordiante, stored in UTM",
+    "description": "Site location - Latitude, stored in WGS 84",
     "mode": "NULLABLE",
-    "name": "SiteNorthing_UTM",
+    "name": "SiteLatitude_DD",
     "type": "FLOAT"
   },
   {
-    "description": "Site location - EPSG associated with UTM coordnates",
+    "description": "Site location - EPSG code associated with coordnates",
     "mode": "NULLABLE",
     "name": "SiteEPSGCode",
     "type": "INTEGER"
