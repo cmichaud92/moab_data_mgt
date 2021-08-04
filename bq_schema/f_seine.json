@@ -26,7 +26,7 @@
   {
     "description": "Date of site visit (partition on year), timezone = 'America/Denver'",
     "mode": "NULLABLE",
-    "name": "SiteDate_AmericaDenver",
+    "name": "SiteDate_Local",
     "type": "DATE"
   },
   {
@@ -172,7 +172,7 @@
       },
       {
         "description": "Haul timestamp, timezone = 'UTC'",
-        "name": "HaulDateTime_AmericaDenver",
+        "name": "HaulDateTime_Local",
         "type": "DATETIME"
       },
       {
