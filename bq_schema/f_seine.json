@@ -26,7 +26,7 @@
   {
     "description": "Date of site visit (partition on year), timezone = 'America/Denver'",
     "mode": "NULLABLE",
-    "name": "SiteDate_Local",
+    "name": "SiteDate_AmericaDenver",
     "type": "DATE"
   },
   {
@@ -104,7 +104,7 @@
   {
     "description": "Notes on the site",
     "mode": "NULLABLE",
-    "name": "Notes",
+    "name": "SiteNotes",
     "type": "STRING"
   },
   {
@@ -155,7 +155,7 @@
       },
       {
         "description": "Interesting observations related to water quality",
-        "name": "Notes",
+        "name": "WaterQualityNotes",
         "type": "STRING"
       }
     ],
@@ -172,8 +172,8 @@
       },
       {
         "description": "Haul timestamp, timezone = 'UTC'",
-        "name": "HaulDateTime_UTC",
-        "type": "TIMESTAMP"
+        "name": "HaulDateTime_AmericaDenver",
+        "type": "DATETIME"
       },
       {
         "description": "UCRB program gear code",
@@ -192,7 +192,7 @@
       },
       {
         "description": "Haul method used - ISMP (Across, Parallel)",
-        "name": "HaulMethodType",
+        "name": "HaulMethod",
         "type": "STRING"
       },
       {
@@ -271,8 +271,13 @@
         "type": "STRING"
       },
       {
+        "description": "Sample number sited in original dataset",
+        "name": "OriginalSampleID",
+        "type": "STRING"
+      },
+      {
         "description": "Haul notes",
-        "name": "Notes",
+        "name": "HaulNotes",
         "type": "STRING"
       },
       {
@@ -329,7 +334,7 @@
           },
           {
             "description": "Additional observations related to the individual fish",
-            "name": "Notes",
+            "name": "FishEncounterNotes",
             "type": "STRING"
           },
           {
@@ -351,7 +356,7 @@
               },
               {
                 "description": "Observations regarding the pittag",
-                "name": "Notes",
+                "name": "PitTagNotes",
                 "type": "STRING"
               }
             ],
@@ -378,7 +383,7 @@
               },
               {
                 "description": "Observations regarding the floytag",
-                "name": "Notes",
+                "name": "FloyTagNotes",
                 "type": "STRING"
               }
             ],
@@ -400,7 +405,7 @@
               },
               {
                 "description": "Observations related to this biological sample",
-                "name": "Notes",
+                "name": "VialNotes",
                 "type": "STRING"
               }
             ],
@@ -427,7 +432,7 @@
       },
       {
         "description": "Observations related to this biological sample",
-        "name": "Notes",
+        "name": "VialNotes",
         "type": "STRING"
       }
     ],
@@ -454,7 +459,7 @@
   },
   {
     "description": "Observations related to this biological sample",
-    "name": "Notes",
+    "name": "VialNotes",
     "type": "STRING"
   }
     ],
