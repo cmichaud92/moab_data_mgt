@@ -7,6 +7,7 @@
 #-------------------------------
 # Attach packages
 #-------------------------------
+
 {
   library(tidyverse)
   library(lubridate)
@@ -27,18 +28,19 @@ source("./etl/src/qcfx_EL.R")
 #------------------------
 
 # Study
-STUDY <- "123a"
+STUDY <- "123d"
+#STUDY <- "123a"
 
 # Data year (should be current year)
 YEAR <- year(now())
 
 TARGET <- c("SM")
-
+TARGET <- "WE"
 # ----- Specify the configuration environment -----
 
 # default = authenticates to PI's account
-
-CONFIG = "management"
+CONFIG <- "macos"
+# CONFIG = "management"
 # CONFIG = "development"
 
 
@@ -47,7 +49,7 @@ CONFIG = "management"
 {
   Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
   config <- config::get(value = paste0(STUDY, "_config"),
-                        file = "T:/Shared drives/DNR_MoabFieldOffice/Data_mgt/etc/config_proj.yml")
+                        file = "/Users/christophermichaud/Documents/etc/config_proj.yml")
 
 }
 
