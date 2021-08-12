@@ -34,7 +34,7 @@ STUDY <- "123d"
 # Data year (should be current year)
 YEAR <- year(now())
 
-TARGET <- c("SM")
+# TARGET <- c("SM")
 TARGET <- "WE"
 # ----- Specify the configuration environment -----
 
@@ -200,6 +200,16 @@ if ("vial" %in% names(data)) {
 
 # Site table
 if (exists("site_tmp")) {
+
+  # Impute missing site data
+  missing <- tribble(
+    ~key_a, ~project, ~year, ~river, ~reach, ~date, ~starttime, ~endtime, ~start_rmi, ~end_rmi, ~shoreline, ~effort_min, ~effort_sec, ~boat, ~crew, ~site_notes,
+    "5af40a4m60tlahq", "123d", 2021, "GR", "LGR", "05/18/2021", "10:15:20", "11:30:00", 120, 117.7, "R", 75, 0, "Sparky", "SB CM2", NA,
+    "5af40a4m60zi7or", "123d", 2021, "GR", "LGR", "05/18/2021", "13:15:00", "14:25:00", 117.7, 115.6, "R", 63, 0, "Sparky", "SB CM2", NA,
+    "5af40a4m6138fnn", "123d", 2021, "GR", "LGR", "05/18/2021", "14:51:00", "16:25:00", 115.6, 114.0, "R", 70, 0, "Sparky", "SB CM2", NA
+  )
+  site <- bind_rows(site_tmp, missing)
+
   site <- site_tmp %>%
     mutate(startdatetime = as.POSIXct(paste(mdy(date), starttime)),         # Replace `date` and `time` with `datetime`
            enddatetime = as.POSIXct(paste(mdy(date), endtime)),
@@ -415,7 +425,7 @@ if (nrow(qc_sheet) == 0) {
              sheets = ck_dat)
 
   drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
-           path = paste0(gsub("^.*?Drive/", "", config$gsheets_path), "/"))
+           path = paste0(gsub("^.*?drives/", "", config$gsheets_path)))
 
   } else if (nrow(qc_sheet == 1)) {
 
