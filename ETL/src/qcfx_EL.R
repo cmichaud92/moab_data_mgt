@@ -20,10 +20,10 @@ site_qcfx <- function(site_data) {
                                reach == "DESO" & between(end_rmi, 128.5, 215.8) ~ "",
                              reach == "LGR" & between(start_rmi, 0, 128.5) &
                                reach == "LGR" & between(end_rmi, 0, 128.5) ~ "",
-                             reach == "LCO" & between(start_rmi, 0, 110.5) &
-                               reach == "LCO" & between(end_rmi, 0, 110.5) ~ "",
-                             reach == "WW" & between(start_rmi, 110.5, 127.6) &
-                               reach == "WW" & between(end_rmi, 110.5, 127.6) ~ "",
+                             reach == "LCO" & between(start_rmi, 0, 117.5) &
+                               reach == "LCO" & between(end_rmi, 0, 117.5) ~ "",
+                             reach == "WW" & between(start_rmi, 117.5, 127.6) &
+                               reach == "WW" & between(end_rmi, 117.5, 127.6) ~ "",
                              reach == "LSJ" & between(start_rmi, 0, 53) &
                                reach == "LSJ" & between(end_rmi, 0, 53) ~ "",
                              TRUE ~ "FLAG"),
