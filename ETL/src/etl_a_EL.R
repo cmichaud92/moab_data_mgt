@@ -28,14 +28,14 @@ source("./etl/src/qcfx_EL.R")
 #------------------------
 
 # Study
-STUDY <- "123d"
-#STUDY <- "123a"
+#STUDY <- "123d"
+STUDY <- "123a"
 
 # Data year (should be current year)
 YEAR <- year(now())
 
 TARGET <- c("SM")
-TARGET <- "WE"
+#TARGET <- "WE"
 # ----- Specify the configuration environment -----
 
 # default = authenticates to PI's account
