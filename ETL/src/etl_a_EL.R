@@ -59,44 +59,44 @@ CONFIG <- "macos"
 # Google Drive auth for googlesheets access
 #--------------------------------------
 
-# -----Authenticate to google drive-----
-
-drive_auth(email = config$email)
-gs4_auth(token = drive_token())
-
-
- # ----- Locate QAQC sheet -----
-if (CONFIG == "development") {
-
-  qc_sheet <- drive_get(paste(YEAR, "dev", config$study, "QAQC", sep = "_"))
-
-} else {
-
-  qc_sheet <- drive_get(paste(YEAR, config$study, "QAQC", sep = "_"))
-
-}
-
-if (nrow(qc_sheet) > 1) {
-
-  stop("Problem with google sheets")
-
-}
+# # -----Authenticate to google drive-----
+#
+# drive_auth(email = config$email)
+# gs4_auth(token = drive_token())
+#
+#
+#  # ----- Locate QAQC sheet -----
+# if (CONFIG == "development") {
+#
+#   qc_sheet <- drive_get(paste(YEAR, "dev", config$study, "QAQC", sep = "_"))
+#
+# } else {
+#
+#   qc_sheet <- drive_get(paste(YEAR, config$study, "QAQC", sep = "_"))
+#
+# }
+#
+# if (nrow(qc_sheet) > 1) {
+#
+#   stop("Problem with google sheets")
+#
+# }
 
 # Adds 1 to the last sample number currently in the gsheet
 # If new sheet, start number = 1
 
-
-if (nrow(qc_sheet) == 0) {
-  last_num <- 0
-} else if (nrow(qc_sheet) == 1) {
-  tmp <- read_sheet(qc_sheet, range = "site")
-  last_num <- tmp %>%
-    pull(site_id) %>%
-    max() %>%
-    str_sub(start = -3) %>%
-    as.integer()
-}
-
+#
+# if (nrow(qc_sheet) == 0) {
+#   last_num <- 0
+# } else if (nrow(qc_sheet) == 1) {
+#   tmp <- read_sheet(qc_sheet, range = "site")
+#   last_num <- tmp %>%
+#     pull(site_id) %>%
+#     max() %>%
+#     str_sub(start = -3) %>%
+#     as.integer()
+# }
+#
 
 #-------------------------------
 # Import field data (dbf) from local source
@@ -130,7 +130,7 @@ meta <- tibble(
 
 # Combine like tables and...
 # Remove "Z" and complete easy qc
-
+last_num <- 0
 # Data present
 
 # Site data
@@ -208,9 +208,9 @@ if (exists("site_tmp")) {
     "5af40a4m60zi7or", "123d", 2021, "GR", "LGR", "05/18/2021", "13:15:00", "14:25:00", 117.7, 115.6, "R", 63, 0, "Sparky", "SB CM2", NA,
     "5af40a4m6138fnn", "123d", 2021, "GR", "LGR", "05/18/2021", "14:51:00", "16:25:00", 115.6, 114.0, "R", 70, 0, "Sparky", "SB CM2", NA
   )
-  site <- bind_rows(site_tmp, missing)
+  site_tmp1 <- bind_rows(site_tmp, missing)
 
-  site <- site_tmp %>%
+  site <- site_tmp1 %>%
     mutate(startdatetime = as.POSIXct(paste(mdy(date), starttime)),         # Replace `date` and `time` with `datetime`
            enddatetime = as.POSIXct(paste(mdy(date), endtime)),
            across(where(is.POSIXct), force_tz, tzone = "UTC"),
@@ -220,11 +220,11 @@ if (exists("site_tmp")) {
 
     arrange(enddatetime) %>%                                              # this orders data for indexing
 
-    mutate(s_index = row_number(),                                          # add index for qc/site_id
+    mutate(s_index = last_num + row_number(),                                          # add index for qc/site_id
 #           site_num_crct = s_index + (start_num - 1),
            site_id = paste(project,
                            year(startdatetime),                    # Create sample number
-                           str_pad(s_index, 3, "left", "0"),
+                           str_pad(last_num + s_index, 3, "left", "0"),
                            sep = "_")) %>%
 
     left_join(tbl_rch, by = c("reach" = "cd_rch")) %>%                   # Add rvr_code variable
@@ -238,12 +238,12 @@ if (exists("site_tmp")) {
            boat, crew,
            site_notes, key_a) %>%
 
-    mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),  # Simple Belknap correction
-                                                          x + 120, x)})
+    mutate(across(reach, ~ifelse(.x == "WW", "LCO", .x)),
+           pass = NA)
 
 
 
-  samp_n <- select(site, key_a, site_id, s_index, t_stamp = enddatetime, reach)       # Create site_id df and apply to all tables.
+  samp_n <- select(site, key_a, site_id, s_index, t_stamp = enddatetime)       # Create site_id df and apply to all tables.
 } else {
   warning("No `site` data present")
 }
@@ -272,12 +272,13 @@ if (exists("fish_tmp")) {
            across(datetime, force_tz, tzone = "UTC")) %>%
     arrange(datetime) %>%
     mutate(f_index = row_number()) %>%
-    mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),
-                                                          x + 120, x)}) %>%
+    # mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),
+    #                                                       x + 120, x)}) %>%
     select(f_index,
            key_aa,
            s_index,
-           site_id, reach,
+           site_id,
+ #          reach,
            rmi, datetime,
            species, tot_length,
            weight, sex,
@@ -352,11 +353,34 @@ if (exists("vial_tmp")) {
 #------------------------------
 
 # Include only records NOT already appended to gsheets
-sbst_site <- site %>%
-  filter(s_index > last_num)
+# sbst_site <- site %>%
+#   filter(s_index > last_num)
+#
+# sbst_fish <- fish %>%
+#   filter(s_index > last_num)
 
-sbst_fish <- fish %>%
-  filter(s_index > last_num)
+#------------------------------
+# Add corrections
+#------------------------------
+site$river[site$s_index == 16] <- "CO"
+site$reach[site$s_index == 16] <- "LCO"
+site$end_rmi[site$s_index == 16] <- 72.8
+site$end_rmi[site$s_index == 10] <- 126.5
+site$start_rmi[site$s_index == 67] <- 114.8
+site$end_rmi[site$s_index == 40] <- 115.0
+
+site <- site %>%
+  mutate(startdatetime = if_else(enddatetime - startdatetime < el_sec, enddatetime - ((.1 * el_sec) + el_sec), startdatetime))
+
+fish <- fish %>%
+  mutate(across(disp, ~case_when(species %in% spp_nat ~ "RA",
+                                 species %!in% spp_nat ~ "DE")))
+
+# Pittag
+pittag <- pittag %>%
+  mutate(pit_type = "134",
+         across(pit_num, ~ifelse(grepl('[0-9A-Z]{3}[.]{1}', .x), .x, gsub('^([0-9A-Z]{3})([0-9A-Z]+)$', '\\1.\\2', .x))))
+
 #------------------------------
 # QC data.tables
 #------------------------------
@@ -366,52 +390,66 @@ if (exists("site")) {
   ck_site <- site %>%
     filter(s_index > last_num) %>%
     site_qcfx() %>%
-    mutate_if(is.POSIXct, force_tz, tzone = "UTC")
+    mutate_if(is.POSIXct, force_tz, tzone = "UTC") %>%
+    filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
 }
 
 if (exists("fish") && exists("site")) {
-  ck_fish <- fish_qcfx(fish_data = sbst_fish, site_data = sbst_site) %>%
-    mutate_if(is.POSIXct, force_tz, tzone = "UTC")
+  ck_fish <- fish_qcfx(fish_data = fish, site_data = site) %>%
+    mutate_if(is.POSIXct, force_tz, tzone = "UTC") %>%
+    filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
 }
 
 if (exists("pittag")) {
   ck_pittag <- pittag %>%
     filter(s_index > last_num) %>%
-    pit_qcfx(fish_data = sbst_fish)}
+    pit_qcfx(fish_data = sbst_fish) %>%
+    filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
+  }
 
 if (exists("floytag")) {
   ck_floytag <- floytag %>%
     filter(s_index > last_num) %>%
-    floy_qcfx(fish_data = sbst_fish)
+    floy_qcfx(fish_data = sbst_fish) %>%
+    filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
   }
 
-if (exists("sbst_site") && exists("sbst_fish")) {ck_stats <- stats_qcfx(site_data = sbst_site, fish_data = sbst_fish, spp = TARGET)}
+if (exists("sbst_site") && exists("sbst_fish")) {
+  ck_stats <- stats_qcfx(site_data = sbst_site,
+                         fish_data = sbst_fish,
+                         spp = TARGET)
+}
 
-if (exists("water")) {ck_water_qual <- water %>%
-  filter(s_index > last_num)}
+if (exists("water")) {
+  ck_water_qual <- water %>%
+  filter(s_index > last_num)
+}
 
-if (exists("vial")) {ck_vial <- vial %>%
-  filter(s_index > last_num)}
+if (exists("vial")) {
+  ck_vial <- vial %>%
+  filter(s_index > last_num) %>%
+  filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
+  }
 
 
 #-----------------------------------
 # Prep files for append to gsheet
 #-----------------------------------
-if (nrow(ck_site) == 0) {
-
-  message("No new data to add!!!")
-} else {
-
+# if (nrow(ck_site) == 0) {
+#
+#   message("No new data to add!!!")
+# } else {
+#
 ck_names<-grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
   sort()
-
-ck_dat<-do.call("list",mget(ck_names))
-
-fnl_names <- str_remove(ck_names, "ck_")
-
-names(ck_dat) <- fnl_names
-
-ck_dat <- ck_dat[sapply(ck_dat, nrow) > 0] #Remove 0 nrow dataframes
+#
+# ck_dat<-do.call("list",mget(ck_names))
+#
+# fnl_names <- str_remove(ck_names, "ck_")
+#
+# names(ck_dat) <- fnl_names
+#
+# ck_dat <- ck_dat[sapply(ck_dat, nrow) > 0] #Remove 0 nrow dataframes
 
 #saveRDS(ck_dat, file = paste0("./projects/", config$proj, "-", data_yr, "/output/", data_id,"_QAQC-data.Rds"))
 
@@ -419,24 +457,24 @@ ck_dat <- ck_dat[sapply(ck_dat, nrow) > 0] #Remove 0 nrow dataframes
 
 # ----- Append data to QAQC gsheet -----
 
-if (nrow(qc_sheet) == 0) {
-
-  gs4_create(name = paste(YEAR, config$study, "QAQC", sep = "_"),
-             sheets = ck_dat)
-
-  drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
-           path = paste0(gsub("^.*?drives/", "", config$gsheets_path)))
-
-  } else if (nrow(qc_sheet == 1)) {
-
-  names(ck_dat) %>%
-    map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
-  } else {
-
-  stop("issues with google sheets")
-
- }
-}
+# if (nrow(qc_sheet) == 0) {
+#
+#   gs4_create(name = paste(YEAR, config$study, "QAQC", sep = "_"),
+#              sheets = ck_dat)
+#
+#   drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
+#            path = paste0(gsub("^.*?drives/", "", config$gsheets_path)))
+#
+#   } else if (nrow(qc_sheet == 1)) {
+#
+#   names(ck_dat) %>%
+#     map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
+#   } else {
+#
+#   stop("issues with google sheets")
+#
+#  }
+# }
 
 ## End
 

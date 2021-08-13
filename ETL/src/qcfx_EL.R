@@ -29,7 +29,7 @@ site_qcfx <- function(site_data) {
                              TRUE ~ "FLAG"),
          datetime_flg = ifelse(as.duration(enddatetime - startdatetime)  < as.duration(el_sec), "FLAG", ""),
          el_sec_flg = ifelse(el_sec > 7200 | el_sec < 1000, "FLAG", ""),
-         NA_flg = ifelse(apply(select(., s_index:crew), 1, function(x){any(is.na(x))}), "FLAG", "")) #%>%
+         NA_flg = ifelse(apply(select(., s_index:crew, -pass), 1, function(x){any(is.na(x))}), "FLAG", "")) #%>%
 }
 
 #site_qcfx(site_data = site)
@@ -46,13 +46,13 @@ fish_qcfx <- function(fish_data, site_data) {
     full_join(fish_data) %>%
     mutate(orphan_flg = ifelse(is.na(s_index), "FLAG", ""),
            # zero_catch_flg = ifelse(is.na(fish_id), "FLAG", ""),
-           rmi_flg = case_when(reach == "ECHO" & between(rmi, 319.9, 344.4) ~ "",
-                               reach == "DESO" & between(rmi, 128.5, 215.8) ~ "",
-                               reach == "LGR" & between(rmi, 0, 128.5) ~ "",
-                               reach == "LCO" & between(rmi, 0, 110.5) ~ "",
-                               reach == "WW" & between(rmi, 110.5, 127.6) ~ "",
-                               reach == "LSJ" & between(rmi, 0, 53) ~ "",
-                               TRUE ~ "FLAG"),
+           # rmi_flg = case_when(reach == "ECHO" & between(rmi, 319.9, 344.4) ~ "",
+           #                     reach == "DESO" & between(rmi, 128.5, 215.8) ~ "",
+           #                     reach == "LGR" & between(rmi, 0, 128.5) ~ "",
+           #                     reach == "LCO" & between(rmi, 0, 117.5) ~ "",
+           #                     reach == "WW" & between(rmi, 117.5, 127.6) ~ "",
+           #                     reach == "LSJ" & between(rmi, 0, 53) ~ "",
+           #                     TRUE ~ "FLAG"),
            species_flg = ifelse(species %!in% com_spp, "FLAG", ""),
            tot_length_flg = ifelse(species %!in% c("CC", "GC", "NP") & tot_length > 1000, "FLAG", ""),
            weight_flg = ifelse(species %!in% c("CC", "GC", "NP") & weight > 2800, "FLAG", ""),
