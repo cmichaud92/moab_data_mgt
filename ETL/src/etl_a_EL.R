@@ -76,26 +76,33 @@ if (CONFIG == "development") {
 
 }
 
-if (nrow(qc_sheet) > 1) {
+
+# Scrape info from QAQC-sheet if it exists
+
+if (nrow(qc_sheet) > 1) {                       # There are multiple QAQC sheets for this project-year ???
 
   stop("Problem with google sheets")
 
-}
+} else if (nrow(qc_sheet) == 0) {               # There is no existing QAQC sheet for this project-year
 
-# Adds 1 to the last sample number currently in the gsheet
-# If new sheet, start number = 1
-
-
-if (nrow(qc_sheet) == 0) {
   last_num <- 0
-} else if (nrow(qc_sheet) == 1) {
+
+} else if (nrow(qc_sheet) == 1) {               # There is an existing QAQC sheet for this project-year
+
   tmp <- read_sheet(qc_sheet, range = "site")
-  last_num <- tmp %>%
+
+  sheets_dat <- list()
+
+  sheets_dat$last_num <- tmp %>%                # Calculate the site_id start number
     pull(site_id) %>%
     max() %>%
     str_sub(start = -3) %>%
     as.integer()
+
+  sheets_dat$exist_key_a <- tmp %>%
+    pull(key_a)
 }
+
 
 
 #-------------------------------
@@ -129,78 +136,17 @@ meta <- tibble(
 #------------------------------
 
 # Combine like tables and...
-# Remove "Z" and complete easy qc
+# Remove "Z" and complete automated qc
+# Remove data already present in QAQC sheet
 
-# Data present
 
 # Site data
-if ("site" %in% names(data)) {
-  site_tmp <- map_df(data[grepl("site", names(data))], bind_rows) %>%
-    mutate_all(na_if, "Z")                                                # Converts "Z"s to NA
-} else {
-  warning("No `site` data present")
-}
 
+if (exists("site", where = data)) {
 
-# Water data
-if ("water" %in% names(data)) {
-  water_tmp <- map_df(data[grepl("water", names(data))], bind_rows) %>%
-    mutate_at(c("cond_amb", "cond_spec", "rvr_temp", "secchi"),
-              function(x) {ifelse(x == 0, NA, x)}) %>%                    # Converts 0's to NA
-    mutate_all(na_if, "Z")                                                # Converts "Z"s to NA
-} else {
-  message("No `water` data present")
-}
-
-# Fish data
-if ("fish" %in% names(data)) {
-  fish_tmp <- map_df(data[grepl("fish", names(data))], bind_rows) %>%
-    mutate_at(c("ilat", "ilon", "tot_length", "st_length", "weight"),     # Converts 0's to NA
-              function(x) {ifelse(x == 0, NA, x)}) %>%
-    mutate_all(na_if, "Z") %>%                                            # Converts "Z"s to NA
-    mutate(ray_ct = na_if(ray_ct, "N"),
-           tubercles = ifelse(species %in% spp_nat, tubercles, NA),        # Cleans up additional vars
-           rep_cond = toupper(rep_cond))
-} else {
-  warning("No `fish` data present")
-}
-
-# Pittag
-if ("pittag" %in% names(data)) {
-  pit_tmp <- map_df(data[grepl("pittag", names(data))], bind_rows) %>%
-    filter(!is.na(pit_num)) %>%
-    mutate_all(na_if, "Z")                                               # Converts "Z"s to NA
-} else {
-  message("No `pittag` data present")
-}
-
-# Floytag
-if ("floytag" %in% names(data)) {
-  floy_tmp <- map_df(data[grepl("floytag", names(data))], bind_rows) %>%
-    filter(!is.na(floy_num)) %>%
-    mutate_all(na_if, "Z") %>%
-    select(-floy_id)
-} else {
-  message("No `floytag` data present")
-}
-
-# Vial
-if ("vial" %in% names(data)) {
-  vial_tmp <- map_df(data[grepl("vial", names(data))], bind_rows) %>%
-    mutate_all(na_if, "Z")
-} else {
-  message("No `vial` data present")
-}
-#------------------------------
-# Modify data
-#------------------------------
-
-# Create sample_number and index,
-# Create fnl table structures
-
-# Site table
-if (exists("site_tmp")) {
-  site <- site_tmp %>%
+  site <- map_df(data[grepl("site", names(data))], bind_rows) %>%
+    mutate_all(na_if, "Z") %>%                                                 # Converts "Z"s to NA
+    filter(key_a %!in% sheets_dat$exist_key_a) %>%
     mutate(startdatetime = as.POSIXct(paste(mdy(date), starttime)),         # Replace `date` and `time` with `datetime`
            enddatetime = as.POSIXct(paste(mdy(date), endtime)),
            across(where(is.POSIXct), force_tz, tzone = "UTC"),
@@ -210,8 +156,7 @@ if (exists("site_tmp")) {
 
     arrange(enddatetime) %>%                                              # this orders data for indexing
 
-    mutate(s_index = row_number(),                                          # add index for qc/site_id
-#           site_num_crct = s_index + (start_num - 1),
+    mutate(s_index = row_number() + sheets_dat$last_num,                  # add index for qc/site_id
            site_id = paste(project,
                            year(startdatetime),                    # Create sample number
                            str_pad(s_index, 3, "left", "0"),
@@ -234,30 +179,52 @@ if (exists("site_tmp")) {
 
 
   samp_n <- select(site, key_a, site_id, s_index, t_stamp = enddatetime, reach)       # Create site_id df and apply to all tables.
-} else {
+  # Exclude samples already present in QAQC sheet
+
+  } else {
+
   warning("No `site` data present")
 }
 
-attributes(samp_n$t_stamp)
 
-attributes(site$startdatetime)
-attributes(site$enddatetime)
-# Water_qual table
-if (exists("water_tmp")) {
-  water <- left_join(water_tmp, samp_n, by = "key_a") %>%
+# Water data
+
+if (exists("water", where = data)) {
+
+  water <- map_df(data[grepl("water", names(data))], bind_rows) %>%
+    mutate_at(c("cond_amb", "cond_spec", "rvr_temp", "secchi"),
+              function(x) {ifelse(x == 0, NA, x)}) %>%                        # Converts 0's to NA
+    mutate_all(na_if, "Z") %>%                                                # Converts "Z"s to NA
+    filter(key_a %!in% sheets_dat$exist_key_a) %>%
+    left_join(samp_n, by = "key_a") %>%
     rename(water_notes = h2o_notes) %>%
     arrange(t_stamp) %>%
     select(key_ab, s_index, site_id,
            cond_amb, cond_spec,
            rvr_temp, secchi,
            water_notes, key_a)
-} else {
+
+  } else {
+
   message("No `water` data present")
 }
 
-# Fish table
-if (exists("fish_tmp")) {
-  fish_1 <- left_join(fish_tmp, samp_n, by = "key_a") %>%
+
+# Fish data
+
+if (exists("fish", where = data)) {
+
+  fish_tmp <- map_df(data[grepl("fish", names(data))], bind_rows) %>%
+    mutate_at(c("ilat", "ilon", "tot_length", "st_length", "weight"),     # Converts 0's to NA
+              function(x) {ifelse(x == 0, NA, x)}) %>%
+    mutate_all(na_if, "Z") %>%                                            # Converts "Z"s to NA
+    mutate(ray_ct = na_if(ray_ct, "N"),
+           tubercles = ifelse(species %in% spp_nat, tubercles, NA),        # Cleans up additional vars
+           rep_cond = toupper(rep_cond)) %>%
+    filter(key_a %!in% sheets_dat$exist_key_a)
+
+  fish_1 <- fish_tmp %>%
+    left_join(samp_n, by = "key_a") %>%
     mutate(datetime = as.POSIXct(paste(as.Date(t_stamp), time)),
            across(datetime, force_tz, tzone = "UTC")) %>%
     arrange(datetime) %>%
@@ -292,15 +259,22 @@ if (exists("fish_tmp")) {
 
   fish <- full_join(fish_1, fish_sf, by = c("site_id", "rmi")) %>%
     select(-c(ilat, ilon))
-} else {
+
+  } else {
+
   warning("No `fish` data present")
 }
 
-attributes(fish$datetime)
 
-# Pittag table
-if (exists("pit_tmp")) {
-  pittag <- left_join(pit_tmp, samp_n, by = "key_a") %>%
+# Pittag
+
+if (exists("pittag", where = data)) {
+
+  pittag <- map_df(data[grepl("pittag", names(data))], bind_rows) %>%
+    filter(!is.na(pit_num)) %>%
+    mutate_all(na_if, "Z") %>%                                               # Converts "Z"s to NA
+    filter(key_a %!in% sheets_dat$exist_key_a) %>%
+    left_join(samp_n, by = "key_a") %>%
     left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
     arrange(datetime) %>%
     mutate(p_index = row_number(),
@@ -308,45 +282,52 @@ if (exists("pit_tmp")) {
     select(p_index, s_index, key_aaa, key_aa, site_id,
            species,pit_type, pit_num, pit_recap,
            pit_notes, key_a)
-} else {
+
+  } else {
+
   message("No `pittag` data present")
 }
 
-# Floytag table
-if (exists("floy_tmp")) {
-  floytag <- left_join(floy_tmp, samp_n, by = "key_a") %>%
+
+# Floytag
+
+if (exists("floytag", where = data)) {
+
+  floytag <- map_df(data[grepl("floytag", names(data))], bind_rows) %>%
+    filter(!is.na(floy_num)) %>%
+    mutate_all(na_if, "Z") %>%
+    select(-floy_id) %>%
+    filter(key_a %!in% sheets_dat$exist_key_a) %>%
+    left_join(samp_n, by = "key_a") %>%
     left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
     arrange(datetime) %>%
     mutate(fl_index = row_number()) %>%
     select(fl_index, s_index, key_aab, key_aa, site_id,
            species, floy_color, floy_num, floy_recap,
            floy_notes)
-} else {
+  } else {
+
   message("No `floytag` data present")
 }
 
-# Vial table
-if (exists("vial_tmp")) {
-  vial <- left_join(vial_tmp, samp_n, by = "key_a") %>%
+# Vial
+if (exists("vial", where = data)) {
+
+  vial <- map_df(data[grepl("vial", names(data))], bind_rows) %>%
+    mutate_all(na_if, "Z") %>%
+    filter(key_a %!in% sheets_dat$exist_key_a) %>%
+    left_join(samp_n, by = "key_a") %>%
     left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
     arrange(datetime) %>%
     mutate(v_index = row_number()) %>%
     select(v_index, s_index, key_aac, key_aa, site_id,
            species, vial_num, vial_type, vial_notes)
 } else {
-  message("No `floytag` data present")
+
+  message("No `vial` data present")
 }
 
-#------------------------------
 
-#------------------------------
-
-# Include only records NOT already appended to gsheets
-sbst_site <- site %>%
-  filter(s_index > last_num)
-
-sbst_fish <- fish %>%
-  filter(s_index > last_num)
 #------------------------------
 # QC data.tables
 #------------------------------
@@ -354,34 +335,29 @@ ck_meta <- meta
 
 if (exists("site")) {
   ck_site <- site %>%
-    filter(s_index > last_num) %>%
     site_qcfx() %>%
     mutate_if(is.POSIXct, force_tz, tzone = "UTC")
 }
 
 if (exists("fish") && exists("site")) {
-  ck_fish <- fish_qcfx(fish_data = sbst_fish, site_data = sbst_site) %>%
+  ck_fish <- fish_qcfx(fish_data = fish, site_data = site) %>%
     mutate_if(is.POSIXct, force_tz, tzone = "UTC")
 }
 
 if (exists("pittag")) {
   ck_pittag <- pittag %>%
-    filter(s_index > last_num) %>%
-    pit_qcfx(fish_data = sbst_fish)}
+    pit_qcfx(fish_data = fish)}
 
 if (exists("floytag")) {
   ck_floytag <- floytag %>%
-    filter(s_index > last_num) %>%
-    floy_qcfx(fish_data = sbst_fish)
+    floy_qcfx(fish_data = fish)
   }
 
-if (exists("sbst_site") && exists("sbst_fish")) {ck_stats <- stats_qcfx(site_data = sbst_site, fish_data = sbst_fish, spp = TARGET)}
+if (exists("site") && exists("fish")) {ck_stats <- stats_qcfx(site_data = site, fish_data = fish, spp = TARGET)}
 
-if (exists("water")) {ck_water_qual <- water %>%
-  filter(s_index > last_num)}
+if (exists("water")) {ck_water_qual <- water}
 
-if (exists("vial")) {ck_vial <- vial %>%
-  filter(s_index > last_num)}
+if (exists("vial")) {ck_vial <- vial}
 
 
 #-----------------------------------
@@ -392,12 +368,18 @@ if (nrow(ck_site) == 0) {
   message("No new data to add!!!")
 } else {
 
-ck_names<-grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
+ck_names <- grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
   sort()
 
 ck_dat<-do.call("list",mget(ck_names))
 
 fnl_names <- str_remove(ck_names, "ck_")
+
+sh_names <-  sheet_names(qc_sheet)
+
+append_names <- fnl_names[fnl_names %in% sh_names]
+
+write_names <- fnl_names[fnl_names %!in% sh_names]
 
 names(ck_dat) <- fnl_names
 
@@ -419,8 +401,15 @@ if (nrow(qc_sheet) == 0) {
 
   } else if (nrow(qc_sheet == 1)) {
 
-  names(ck_dat) %>%
-    map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
+    if (length(append_names > 0)) {
+
+      append_names %>%
+        map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
+    }
+
+    if(length)
+  write_names %>%
+    map(~sheet_write(ss = qc_sheet, data = ck_dat[[.]], sheet = .))
   } else {
 
   stop("issues with google sheets")
