@@ -39,9 +39,9 @@ TARGET <- c("SM")
 # ----- Specify the configuration environment -----
 
 # default = authenticates to PI's account
-CONFIG <- "macos"
+# CONFIG <- "macos"
 # CONFIG = "management"
-# CONFIG = "development"
+CONFIG = "development"
 
 
 
@@ -68,7 +68,7 @@ gs4_auth(token = drive_token())
  # ----- Locate QAQC sheet -----
 if (CONFIG == "development") {
 
-  qc_sheet <- drive_get(paste(YEAR, "dev", config$study, "QAQC", sep = "_"))
+  qc_sheet <- drive_get(paste(YEAR, config$study, "QAQC", sep = "_"))
 
 } else {
 
@@ -85,7 +85,9 @@ if (nrow(qc_sheet) > 1) {                       # There are multiple QAQC sheets
 
 } else if (nrow(qc_sheet) == 0) {               # There is no existing QAQC sheet for this project-year
 
-  last_num <- 0
+  sheets_dat <- list()
+  sheets_dat$last_num <- 0
+  sheets_dat$exists_key_a <- ""
 
 } else if (nrow(qc_sheet) == 1) {               # There is an existing QAQC sheet for this project-year
 
@@ -366,56 +368,56 @@ if (exists("vial")) {ck_vial <- vial}
 if (nrow(ck_site) == 0) {
 
   message("No new data to add!!!")
-} else {
 
-ck_names <- grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
-  sort()
+  } else if (nrow(qc_sheet) == 0) {
 
-ck_dat<-do.call("list",mget(ck_names))
+  ck_names <- grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
+    sort()
 
-fnl_names <- str_remove(ck_names, "ck_")
+  ck_dat<-do.call("list",mget(ck_names))
 
-sh_names <-  sheet_names(qc_sheet)
+  names_fnl <- str_remove(ck_names, "ck_")
 
-append_names <- fnl_names[fnl_names %in% sh_names]
+  names(ck_dat) <- names_fnl
 
-write_names <- fnl_names[fnl_names %!in% sh_names]
-
-names(ck_dat) <- fnl_names
-
-ck_dat <- ck_dat[sapply(ck_dat, nrow) > 0] #Remove 0 nrow dataframes
-
-#saveRDS(ck_dat, file = paste0("./projects/", config$proj, "-", data_yr, "/output/", data_id,"_QAQC-data.Rds"))
-
-
-
-# ----- Append data to QAQC gsheet -----
-
-if (nrow(qc_sheet) == 0) {
+  ck_dat <- ck_dat[sapply(ck_dat, nrow) > 0] #Remove 0 nrow dataframes
 
   gs4_create(name = paste(YEAR, config$study, "QAQC", sep = "_"),
              sheets = ck_dat)
 
-  drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
-           path = paste0(gsub("^.*?Drive/", "", config$gsheets_path), "/"))
+# drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
+#          path = paste0(gsub("^.*?shared drives/", "", config$gsheets_path), "/"))
 
-  } else if (nrow(qc_sheet == 1)) {
+  } else if (nrow(qc_sheet) == 1) {
 
-    if (length(append_names > 0)) {
+  ck_names <- grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
+    sort()
 
-      append_names %>%
-        map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
-    }
+  ck_dat<-do.call("list",mget(ck_names))
 
-    if(length)
-  write_names %>%
+  names_fnl <- str_remove(ck_names, "ck_")
+
+  names(ck_dat) <- names_fnl
+
+  ck_dat <- ck_dat[sapply(ck_dat, nrow) > 0] #Remove 0 nrow dataframes
+
+  names_sheet <- sheet_names(qc_sheet)
+  names_append <- names_fnl[names_fnl %in% names_sheet]
+  names_write <- names_fnl[names_fnl %!in% names_sheet]
+
+  if (length(names_append) > 0) {
+
+    names_append %>%
+      map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
+  }
+
+  if (length(names_write) > 0) {
+    names_write %>%
     map(~sheet_write(ss = qc_sheet, data = ck_dat[[.]], sheet = .))
+  }
   } else {
 
-  stop("issues with google sheets")
+    stop("issues with google sheets")
 
- }
 }
-
-## End
 
