@@ -1,0 +1,957 @@
+---
+title: 'Project 123d: Walleye Management on the Lower Green and Colorado Rivers'
+author:
+  affiliation: Utah Division of Wildlife Resources
+  name: Christopher Michaud
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    fig_caption: no
+    keep_md: yes
+  word_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+
+library(tidyverse)
+library(lubridate)
+library(knitr)
+library(flextable)
+library(gt)
+library(UCRBtools)
+library(kableExtra)
+library(sf)
+library(mapview)
+library(BrailleR)
+
+theme_set(theme_bw())
+mapviewOptions(basemaps = c("Esri.WorldImagery", "OpenTopoMap", "CartoDB.Positron", "OpenStreetMap"))
+
+`%!in%` <- Negate(`%in%`)
+```
+
+
+```{r data-io, include=FALSE}
+
+# Fetch final datasets 123d_2020.csv's 
+files <- list.files(path = "./Reports/Rept-data/", 
+                    pattern = ".csv$",
+                    full.names = TRUE)
+
+dat <- map(files, read_csv)
+
+dat_name <- list()
+dat_name <- as.list(stringr::str_extract(files, "(?<=[0-9]{4}\\_[a-z]{2}\\-).*(?=\\.csv)"))
+
+names(dat) <- dat_name
+
+
+tmp_site <- dat$site %>% 
+  mutate(across(starts_with("tm_"), ymd_hms),
+         across(starts_with("tm_"), with_tz, "America/Denver"))
+
+tmp_fish <- dat$fish %>% 
+  mutate(across(starts_with("tm_"), ymd_hms),
+         across(starts_with("tm_"), with_tz, "America/Denver"))
+
+  
+
+```
+
+```{r spatial-io, include=FALSE}
+# ----- Centerline (NHD) -----
+ctr <- st_read("~/Documents/Data/Spatial-data/ucrb_spat_v2.sqlite",
+               layer = "nhd_ctr_lns") %>%
+  filter(nm_rvr %in% c("Green River", "Colorado River"))  
+
+# ----- RMI points (NHD) -----
+pt1 <- st_read("~/Documents/Data/Spatial-data/ucrb_spat_v2.sqlite",
+               layer = "nhd_rmi_pts")
+
+# ----- Subset points to individual reaches -----
+gr_t <- pt1 %>%
+  filter(cd_rvr == "GR" &
+           between(rmi_nhd, 100, 129.5)) 
+
+gr_g <- pt1 %>%
+  filter(cd_rvr == "GR" &
+           between(rmi_nhd, 129.5, 141.2))
+
+co_w <- pt1 %>% 
+  filter(cd_rvr == "CO" &
+           between(rmi_nhd, 65, 118))
+
+# ----- Crop centerline to reach extents -----
+lww <- st_crop(ctr, co_w) %>% 
+  mutate(reach = "Lower Westwater")
+
+grey <- st_crop(ctr, gr_g) %>% 
+  mutate(reach = "Lower Gray Canyon")
+
+tusher <- st_crop(ctr, gr_t) %>% 
+  mutate(reach = "Tusher Reach")
+
+```
+
+```{r}
+# Define year 
+yr = unique(year(tmp_site$tm_end))
+```
+
+
+```{r data-transformation}
+# Modify site tbl
+site <- tmp_site %>% 
+  mutate(rch_code = case_when(cd_rvr == "CO" ~ "LCO",
+                              cd_rvr == "GR" &
+                                between(rmi_start_bel, 100, 129.5) ~ "LGR",
+                              cd_rvr == "GR" &
+                                rmi_start_bel > 129.5 ~ "DESO"),
+         rch_name = case_when(rch_code == "LWW" ~ "Lower Colorado River",
+                              rch_code == "DESO" ~ "Lower Gray Canyon",
+                              rch_code == "LGR" ~ "Tusher"),
+         date = as.Date(startdatetime),
+         week = week(startdatetime)) %>% 
+  left_join(dat$usgswater, by = c("rvr_code", "date"))
+
+site_rch <- site %>%
+  split(.$rch_code)
+
+reach_tmp <- select(site, site_id, rch_code, rch_name, rvr_code, rvr_name)
+```
+
+
+
+
+```{r summary-dfs-site}
+
+samp_stats <- list(
+  max = ~ max(.x, na.rm = TRUE),
+  min = ~ min(.x, na.rm = TRUE)
+)
+
+s_summary <- site %>%
+  group_by(rvr_code, rvr_name, rch_name, rch_code) %>% 
+  summarise(across(.cols = c(starts_with("date"), ends_with("RMI"), discharge, rvr_temp), samp_stats),
+            effort_hr = round(sum(el_sec, na.rm = TRUE)/3600, 1),
+            sampl_days = length(unique(as.Date(startdatetime))),
+            .groups = "drop") %>% 
+  mutate_if(is.Date, ~ format(.x, "%d %B %Y")) %>% 
+  mutate_if(is.numeric, ~ format(.x, big.mark = ",")) %>% 
+  mutate(temp_rng = paste(rvr_temp_min, rvr_temp_max, sep = " - "),
+         dis_rng = paste(discharge_min, discharge_max, sep = " - "),
+         .keep = "unused") %>% 
+  arrange(dmy(.$date_min))
+
+s_summary_rch <- s_summary %>% 
+  split(.$rch_code)
+
+```
+
+
+
+```{r summary-dfs-water}
+
+water_stats <- list(
+  max = ~ max(.x, na.rm = TRUE),
+  min = ~ min(.x, na.rm = TRUE),
+  median = ~ median(.x, na.rm = TRUE),
+  n = ~ n())
+
+
+w_summary <- dat$usgswater %>%
+  group_by(rvr_code) %>% 
+  summarise(across(.cols = c(discharge), .fns = water_stats),
+            dt_max_flow = format(date[which.max(discharge)], "%d %B %Y"),
+            dt_min_flow = format(date[which.min(discharge)], "%d %B %Y"),
+            .groups = "drop") %>% 
+  mutate_if(is.numeric, ~ format(.x, big.mark = ",")) 
+
+w_summary_rvr <- w_summary %>% 
+  split(.$rvr_code)
+
+s_tmp <- site %>% 
+  group_by(rvr_code, rch_code, rch_name, date = as.Date(startdatetime)) %>% 
+  summarise(el_sec = sum(el_sec, na.rm = TRUE),
+            .groups = "drop") 
+
+water <- dat$usgswater %>% 
+  left_join(s_tmp, by = c("date", "rvr_code")) %>% 
+  left_join(tbl_rvr, by = c("rvr_code" = "cd_rvr")) %>% 
+  filter(date < as.Date("2020-10-01"))
+```
+
+
+
+```{r cpue-data}
+# Create simple CPUE df
+cpue <- dat$cpue %>%
+  mutate(wk = week(startdatetime),
+         mo = month(startdatetime)) %>%
+  inner_join(select(tbl_spp, -nativity), by = c("spp_code" = "cd_spp")) %>% # join common and sci names for display
+  inner_join(rch, by = c("rch_code" = "cd_rch", "rvr_code" = "cd_rvr")) %>% 
+  inner_join(select(site, site_id, rvr_temp)) %>% 
+  mutate(rch_code = ifelse(rch_code %in% c("WW", "LCO"), "LWW", rch_code),
+         rch_name = case_when(rch_code == "LWW" ~ "Lower Westwater",
+                              rch_code == "DESO" ~ "Lower Gray Canyon",
+                              rch_code == "LGR" ~ "Tusher"))
+
+# Aggregate CPUE to date 
+cpue_dt <- cpue %>% 
+  group_by(rvr_code, rch_code, spp_code, date = as.Date(startdatetime)) %>% 
+  summarise(tot_effort = sum(el_sec, na.rm = TRUE) / 3600,
+            n_fish = sum(fish_ct, na.rm = TRUE),
+            .groups = "drop") %>% 
+  mutate(cpue_dt = n_fish/tot_effort)
+
+water2 <- dat$usgswater %>% 
+  left_join(cpue_dt, by = c("date", "rvr_code")) %>% 
+  left_join(tbl_rvr, by = c("rvr_code" = "cd_rvr"))  %>% 
+  filter(date < as.Date("2020-10-01"))
+
+
+# Aggregate to river for the Colorado River
+# cpue_rvr_co <- cpue %>%
+#   filter(rvr_code == "CO") %>% 
+#   group_by(rvr_name, com_name, spp_code) %>% 
+#   summarise(fish_ct = sum(fish_ct),
+#             tot_effort = round(sum(el_sec)/3600,2),
+#            .groups = "drop") %>% 
+#   mutate(cpue = round(fish_ct/tot_effort, 2)) %>% 
+#   filter(fish_ct > 0) 
+
+
+# Calculate cpue by week and split reach
+# cpue_week <- cpue %>% 
+#   mutate(wk = week(startdatetime)) %>% 
+#   group_by(rch_code, rch_name, wk, com_name, spp_code) %>% 
+#   summarise(fish_ct = sum(fish_ct),
+#             tot_effort = round(sum(el_sec)/3600,2),
+#             m_temp = mean(rvr_temp, na.rm = TRUE),
+#            .groups = "drop") %>% 
+#   mutate(cpue = round(fish_ct/tot_effort, 2)) %>% 
+#   filter(fish_ct > 0) %>% 
+#   split(.$rch_code)
+
+```
+
+```{r}
+# Aggregate to reach and calculate total cpue and split reach Green River
+cpue_rch <- cpue %>% 
+  group_by(rch_code, rch_name, nm_com, spp_code) %>% 
+  summarise(fish_ct = sum(fish_ct),
+            tot_effort = round(sum(el_sec)/3600,2),
+           .groups = "drop") %>% 
+  mutate(cpue = round(fish_ct/tot_effort, 2)) %>% 
+  filter(fish_ct > 0) %>% 
+  split(.$rch_code)
+
+
+```
+
+
+
+```{r biomet-data}
+
+fish_bio <- left_join(dat$fish, reach_tmp, by = c("site_id")) %>%
+  split(.$rch_code)
+
+```
+
+```{r lf-figures}
+fig_lf <- function(.data = fish_bio, .x, .fig_num, binwidth = 25) { 
+  .data %>% 
+    filter(spp_code == .x) %>% 
+    ggplot() +
+    geom_histogram(aes(x = tot_length),
+                   binwidth = binwidth,
+                   color = "black") +
+    labs(title = paste0("Figure ", .fig_num, ". Length frequency histogram for ", 
+                       unique(.data$com_name[.data$spp_code == .x]), 
+                       "\n encountered within the ", 
+                       unique(.data$rch_name),
+                       " Reach, ",
+                       unique(year(.data$datetime))),
+         x = "Total length (mm)",
+         y = "Number of fish")
+}
+
+# fish_bio$LWW %>%
+#   fig_lf(.x = "WE", .fig_num = 0)
+# 
+# # fish_bio$LGR %>%
+# #   fig_lf(.x = "LG", binwidth = 5)
+# # 
+# # fish_bio$LGR %>%
+# #   fig_lf(.x = "SM")
+# 
+# rbind(fish_bio$LCO, fish_bio$WW) %>%
+#   fig_lf(.x = "SM")
+```
+
+```{r water-figs}
+
+  
+hydro <- function(.data, .river_code, .fig_num) {
+  .river_name <- unique(na.omit(.data$nm_rvr[.data$rvr_code == .river_code]))
+  .data2 <- .data %>% 
+    filter(rvr_code == .river_code)
+  
+  ggplot(.data2) +
+    geom_line(aes(x = date, y = discharge), lwd = 1) +
+    geom_point(data = filter(.data2, !is.na(rch_code)),
+               aes(x = date, y = discharge), 
+               pch = 21,
+               cex = 4,
+               fill = "dodgerblue",
+               alpha = .8) +
+    labs(title = paste0("Figure ", .fig_num, ". Discharge on the ", 
+                        unique(.data2$nm_rvr),
+                        ", ",
+                        max(year(.data2$date), na.rm = TRUE)),
+         subtitle = paste("Sampling events noted with blue points"),
+         x = "",
+         y = "Discharge (cfs)")  
+}
+ 
+
+ # Test:
+ # hydro(water2, .river_code = "GR", .fig_num = 12)
+```
+
+# {.tabset .tabset-fade .tabset-pills}
+
+### Abstract
+
+Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$startdatetime))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$spp_code == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$spp_code == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
+
+```{r summary-gt, eval=FALSE}
+# s_summary %>%
+#   select(rch_name, date_min, date_max, effort_hr, temp_rng, dis_rng) %>% 
+#   gt() %>% 
+#     tab_header("Summary of Project 123d sampling effort by reach during 2020") %>% 
+#     cols_label(rch_name = "Reach Name",
+#                date_min = "Start Date", 
+#                date_max = "End Date",
+#                effort_hr = "Effort (hr)",
+#                temp_rng = "Temperature Range (*C)",
+#                dis_rng = "Discharge Range (cubic-feet per second)"
+#     ) %>% 
+#     cols_align(
+#       align = "center",
+#       columns = vars(date_min, date_max, effort_hr, temp_rng, dis_rng))
+
+```
+
+```{r summary-flx}
+s_summary %>%
+
+  flextable(col_keys = c("rch_name", "date_min", "date_max", 
+                         "sampl_days", "effort_hr", "temp_rng", "dis_rng")) %>% 
+  set_table_properties(width = .7, layout = "autofit") %>% 
+
+  theme_vanilla() %>% 
+
+  align(align = "center", part = "all") %>% 
+  set_header_labels(
+    rch_name = "Reach",
+    date_min = "Start Date",
+    date_max = "End Date",
+    sampl_days = "Days Sampled",
+    effort_hr = "Sampling Effort (hr)",
+    temp_rng = "Temperature Range (°C)",
+    dis_rng = "Discharge Range (cfs)"
+  ) %>% 
+
+  bg(bg = "#D3D3D3", part = "header") %>% 
+  add_header_lines(values = "Table 1. Effort summary by reach in 2020", top = TRUE) %>% 
+  bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+
+```
+
+___
+
+<br><br> 
+
+<center>
+```{r study-area}
+
+# ----- Map it -----
+mapview(grey, color = "green3", 
+        lwd = 5,
+        layer.name = "Lower Gray Canyon") +
+  mapview(tusher, color = "blue", 
+          lwd = 5, 
+          layer.name = "Tusher") +
+  mapview(lww, color = "red3", 
+          lwd = 5,
+          layer.name = "Lower Westwater")
+
+```
+</center>
+
+Figure 1. Removal reaches sampled during 2020: Lower Gray Canyon Reach (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`), Tusher Reach (RM `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Westwater Reach (RM `r s_summary_rch$LWW$start_rmi_max` and`r s_summary_rch$LWW$end_rmi_min`).
+
+<br><br>
+
+
+___
+
+
+## Green River
+
+<br><br>
+
+<center>
+```{r fig.cap="A photograph showing the Tusher diversion. It appears as a low head concrete dam with river water cascading over it. Concrete flow regulation gates are visible on the far side of the structure and a sunset over the desert landscape is in the background"}
+knitr::include_graphics(path = "c:/Users/cmichaud/proj_mgt/proj/proj_123d/123d_2020/asset/tusher_crop.jpg",
+                        dpi = 75)
+```
+</center>  
+
+The Tusher Diversion dam creates a semi-passable barrier on the Green River and delineates the upper boundary of the Tusher Walleye Management Reach.
+
+___
+
+<br><br>
+
+### Tusher Reach
+
+The Green River peaked at `r w_summary_rvr$GR$discharge_max` cfs on `r w_summary_rvr$GR$dt_max_flow`, measured on USGS gage 09315000, located at the town of Green River, Utah (Figure 2). Crews began sampling below Tusher Diversion on `r s_summary_rch$LGR$date_min` and ended on `r s_summary_rch$LGR$date_max`. Main channel temperatures ranged between `r s_summary_rch$LGR$temp_rng` °C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LGR$start_rmi_max` and `r s_summary_rch$LGR$end_rmi_min` (Figure 1).
+
+<br><br>
+
+
+```{r gr-dis-cap}
+ck <- water %>% 
+  filter(rvr_code == "GR") %>% 
+  distinct(date, .keep_all = TRUE)
+h_gr <- hydro(ck, .river_code = "GR", .fig_num = 2)
+cap1 <- paste(capture.output(BrailleR::VI(h_gr)), collapse = " ")
+extra_text <- "This figure is depicts the dates on which sampling occurred (points) and the river discharge (line) during the sampling period. The sampling dates and river discharge follow -"
+cap_dat <- filter(water, rvr_code == "GR" & !is.na(rch_code)) %>% 
+  distinct(date, .keep_all = TRUE)
+dt_sample <- format(cap_dat$date[cap_dat$rvr_code == "GR" & !is.na(cap_dat$rch_code)], "%B %d")
+dis_sample <- paste(cap_dat$discharge[cap_dat$rvr_code == "GR" & !is.na(cap_dat$rch_code)], "cfs")
+
+dt_dis <- paste0(dt_sample, ": ", dis_sample)
+fnl_dt_dis <- paste(dt_dis, collapse = ", ")
+
+fnl_cap1 <- paste(c(cap1, extra_text, fnl_dt_dis), collapse = " ")
+
+```
+
+<center>
+```{r gr-dis-fig, fig.cap=fnl_cap1}
+h_gr
+
+```
+
+</center>
+
+
+A total of `r s_summary_rch$LGR$effort_hr` hours of effort were allocated to this reach and  `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$nm_com == "walleye"]` walleye were removed (catch-per-unit-effort [cpue] = `r cpue_rch$LGR$cpue[cpue_rch$LGR$nm_com == "walleye"]` fish-per-hour).  Walleye catch rates are similar to recent years (Table 4), but with increased effort substantially more walleye have been removed in 2019 and 2020 than previous years. Walleye total lengths within this reach were also similar to recent years (mean = `r round(mean(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"], na.rm = TRUE))` mm, range = `r min(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"], na.rm = TRUE)` - `r max(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"], na.rm = TRUE)` mm) (Figure 3). Additionally, researchers removed `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$nm_com == "smallmouth bass"]` smallmouth bass (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$nm_com == "smallmouth bass"]` fish-per-hour) and `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$nm_com == "northern pike"]` northern pike (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$nm_com == "northern pike"]` fish-per-hour) (Table 2). Native fish encounters are summarized in Table 3. 
+  
+<br><br>
+
+<center>
+```{r nnf-cpue-GR-gt}
+
+cpue_rch$LGR %>% 
+  filter(spp_code %!in% spp_nat) %>%
+  arrange(desc(cpue)) %>% 
+  select(-c(rch_code)) %>% 
+  
+  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  set_table_properties(width = .5, layout = "autofit") %>% 
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    nm_com = "Common Name",
+    fish_ct = "Number of Fish Encountered",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+  add_footer_lines(values = paste("Based on ", 
+                                  unique(cpue_rch$LGR$tot_effort), 
+                                  " hours of electrofishing effort"), 
+                   top = FALSE) %>%
+  add_header_lines(values = "Table 2. Nonnative fish encounters within the\n Tusher Reach, 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+
+```
+</center>
+
+
+<br><br>
+
+```{r nat-cpue-GR}
+cpue_rch$LGR %>% 
+  filter(spp_code %in% spp_nat) %>%
+  arrange(desc(cpue)) %>% 
+  select(-c(rch_code)) %>% 
+
+  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  set_table_properties(width = .5, layout = "autofit") %>% 
+
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    nm_com = "Common Name",
+    fish_ct = "Number of Fish Encountered",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+  add_footer_lines(values = paste("Based on ", 
+                                  unique(cpue_rch$LGR$tot_effort), 
+                                  " hours of electrofishing effort"), 
+                   top = FALSE) %>% 
+  add_header_lines(values = "Table 3. Native fish encounters within the\n Tusher Reach, 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+```
+
+<br><br>
+
+
+```{r}
+tibble(yr = c(2020, 2019, 2018, 2017),
+       n_we = c(113, 151, 12, 32),
+       tot_effort = c(39.7, 43.4, 7.2, 25),
+       cpue = c(2.85, 3.48, 1.66, 1.28)) %>% 
+  flextable() %>% 
+    set_table_properties(width = .6, layout = "autofit") %>% 
+
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    yr = "Year",
+    n_we = "Number of Fish Encountered",
+    tot_effort = "Total Effort (hours)",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+ 
+  add_header_lines(values = "Table 4. Walleye catch-per-unit-effort \nTusher Reach, 2017 - 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+```
+
+<br><br>
+
+```{r lf-gr-cap}
+lf_gr <- fig_lf(.data = fish_bio$LGR, .x = "WE", .fig_num = 3)
+
+cap3 <- paste(capture.output(BrailleR::VI(lf_gr)), collapse = " ")
+
+#generate alt data
+sum_lf <- summary(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"])
+nm_sum_lf <- names(sum_lf)
+vec_lf <- as.vector(round(sum_lf))
+dat_lf <- paste(nm_sum_lf, " = ", vec_lf, collapse = ", ")
+
+# better alt text
+extra_text <- " The visualized data can be summarized as follows: "
+fnl_cap3 <- paste(c(cap3, extra_text, dat_lf), collapse = "")
+```
+
+<center>
+```{r lf-gr-fig, fig.cap=fnl_cap3}
+lf_gr
+```
+</center>
+
+___
+
+<br><br>
+
+### Lower Gray Canyon Reach
+
+Utah Division of Wildlife Resources completed an experimental two day removal pass in Lower Gray Canyon between 24 and 25 June 2020.  Noting a subtle increase in smallmouth bass within the Tusher reach and curious as to presence of walleye above the Tusher diversion we committed to a two-day raft-based removal pass. Crews encountered no walleye and only one smallmouth bass (Table 5) and few endangered fish (Table 6) within this reach. Researchers sampled between river miles `r s_summary_rch$DESO$start_rmi_max` and `r s_summary_rch$DESO$end_rmi_min` (Figure 1).
+
+<br><br>
+
+```{r}
+cpue_rch$DESO %>% 
+  filter(spp_code %!in% spp_nat) %>%
+  arrange(desc(cpue)) %>% 
+  select(-c(rch_code)) %>% 
+  
+  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  set_table_properties(width = .6, layout = "autofit") %>% 
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    nm_com = "Common Name",
+    fish_ct = "Number of Fish Encountered",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+  add_footer_lines(values = paste("Based on ", 
+                                  unique(cpue_rch$DESO$tot_effort), 
+                                  " hours of electrofishing effort"), 
+                   top = FALSE) %>%
+  add_header_lines(values = "Table 5. Nonnative fish encounters within the \nLower Gray Canyon Reach, 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+
+```
+
+<br><br>
+
+```{r}
+cpue_rch$DESO %>% 
+  filter(spp_code %in% spp_nat) %>%
+  arrange(desc(cpue)) %>% 
+  select(-c(rch_code)) %>% 
+
+  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  set_table_properties(width = .6, layout = "autofit") %>% 
+
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    nm_com = "Common Name",
+    fish_ct = "Number of Fish Encountered",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+  add_footer_lines(values = paste("Based on ", 
+                                  unique(cpue_rch$DESO$tot_effort), 
+                                  " hours of electrofishing effort"), 
+                   top = FALSE) %>% 
+  add_header_lines(values = "Table 6. Native fish encounters within the \nLower Gray Canyon Reach, 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+```
+
+
+
+<br><br>
+
+## Colorado River
+
+<br><br>
+
+<center>
+```{r fig.cap="A photograph showing eight ~300 mm smallmouth bass on a measuring board"}
+knitr::include_graphics(path = "c:/Users/cmichaud/proj_mgt/proj/proj_123d/123d_2020/asset/IMG_1249.JPG",
+                        dpi = 200)
+```
+</center>
+
+Smallmouth bass removed from the swift narrows of Lower Westwater Canyon.
+
+___
+
+<br><br>
+
+### Lower Westwater Reach
+
+The Colorado River, at USGS gage 09180500, located near Cisco, UT, peaked at `r w_summary_rvr$CO$discharge_max` cfs on `r w_summary_rvr$CO$dt_max_flow` (Figure 4).  Crews began sampling within Lower Westwater Canyon on `r s_summary_rch$LWW$date_min` and ended on `r s_summary_rch$LWW$date_max`. Main channel temperatures ranged between `r s_summary_rch$LWW$temp_rng`°C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LWW$start_rmi_max` and`r s_summary_rch$LWW$end_rmi_min` (Figure 1).  During past years UDWR has encountered substantial numbers of walleye and smallmouth bass within this reach. Consequently, we monitor this reach under Project 123d and if walleye or smallmouth catch rates warrant, we apply additional removal effort.
+
+
+<br><br>
+
+
+```{r}
+h_co <- hydro(water, .river_code = "CO", .fig_num = 4)
+
+cap3 <- paste(capture.output(BrailleR::VI(h_co)), collapse = " ")
+
+# Modify caption to include data and richer text
+extra_text <- "This figure is depicts the dates on which sampling occurred (points) and the river discharge (line) during the sampling period."
+# cap_dat <- filter(water, rvr_code == "CO" & !is.na(rch_code)) %>% 
+#   distinct(date, .keep_all = TRUE)
+# dt_sample <- format(cap_dat$date[cap_dat$rvr_code == "CO" & !is.na(cap_dat$rch_code)], "%B %d")
+# dis_sample <- paste(cap_dat$discharge[cap_dat$rvr_code == "CO" & !is.na(cap_dat$rch_code)], "cfs")
+# 
+# dt_dis <- paste0(dt_sample, ": ", dis_sample)
+# fnl_dt_dis <- paste(dt_dis, collapse = ", ")
+
+fnl_cap3 <- paste(c(cap3, extra_text), collapse = " ")
+```
+
+<center>
+```{r fig.cap=fnl_cap3}
+h_co
+```
+
+</center>
+
+A total of `r s_summary_rch$LWW$effort_hr` hours of effort was allocated to this reach and crews removed a total of `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$nm_com == "walleye"]` walleye (catch-per-unit-effort [cpue] = `r cpue_rch$LWW$cpue[cpue_rch$LWW$nm_com == "walleye"]` fish-per-hour).  Additionally, `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$nm_com == "smallmouth bass"]` smallmouth bass were removed (cpue = `r cpue_rch$LWW$cpue[cpue_rch$LWW$nm_com == "smallmouth bass"]`) within this reach (Table 7, Figure 5). This catch-rate is substantially higher than recent years (Table 9). This is particularly concerning due to the close proximity of the Westwater Canyon humpback chub population. Smallmouth bass mean total length in 2020 was `r round(mean(fish_bio$LWW$tot_length[fish_bio$LWW$spp_code == "SM"], na.rm = TRUE))` mm (range = `r min(fish_bio$LWW$tot_length[fish_bio$LWW$spp_code == "SM"], na.rm = TRUE)` - `r max(fish_bio$LWW$tot_length[fish_bio$LWW$spp_code == "SM"], na.rm = TRUE)` mm) (Figure 6). Ancillary captures of native species are noted in Table 8. 
+
+
+<br><br>
+
+
+```{r nnf-cpue-CO}
+cpue_rch$LWW %>% 
+  filter(spp_code %!in% spp_nat) %>%
+  arrange(desc(cpue)) %>% 
+  select(-c(rch_code)) %>% 
+  
+  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  set_table_properties(width = .6, layout = "autofit") %>% 
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    nm_com = "Common Name",
+    fish_ct = "Number of Fish Encountered",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+  add_footer_lines(values = paste("Based on ", 
+                                  unique(cpue_rch$LWW$tot_effort), 
+                                  " hours of electrofishing effort"), 
+                   top = FALSE) %>%
+  add_header_lines(values = "Table 7. Nonnative fish encounters within the \nLower Westwater Reach, 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+```
+
+<br><br>
+
+```{r nat-cpue-CO}
+cpue_rch$LWW$nm_com[cpue_rch$LWW$spp_code == "CH"] <- "native Gila not identified to species"
+cpue_rch$LWW %>% 
+  filter(spp_code %in% spp_nat) %>%
+  arrange(desc(cpue)) %>% 
+  select(-c(rch_code)) %>% 
+
+  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  set_table_properties(width = .6, layout = "autofit") %>% 
+
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    nm_com = "Common Name",
+    fish_ct = "Number of Fish Encountered",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+  add_footer_lines(values = paste("Based on ", 
+                                  unique(cpue_rch$LWW$tot_effort), 
+                                  " hours of electrofishing effort"), 
+                   top = FALSE) %>% 
+  add_header_lines(values = "Table 8. Native fish encounters within the \nLower Westwater Reach, 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+```
+
+<br><br>
+
+```{r}
+tibble(yr = c(2020, 2019, 2018, 2017),
+       n_sm = c(369, 12, 5, 35),
+       tot_effort = c(19.7, 6.6, 2, 7),
+       cpue = c(18.69, 1.81, 2.45, 4.96)) %>% 
+  flextable() %>% 
+    set_table_properties(width = .6, layout = "autofit") %>% 
+
+  theme_vanilla() %>% 
+  align(align = "center", part = "all") %>% 
+
+  set_header_labels(
+    yr = "Year",
+    n_sm = "Number of Fish Encountered",
+    tot_effort = "Total Effort (hours)",
+    cpue = "Fish-per-Hour"
+  ) %>% 
+  bg(bg = "#D3D3D3", part = "header") %>%
+ 
+  add_header_lines(values = "Table 9. Smallmouth bass catch-per-unit-effort \nLower Westwater Reach, 2017 - 2020", 
+                   top = TRUE) %>% 
+    bold(part = "header") %>% 
+  fontsize(i = 1, size = 14, part = "header") %>% 
+  align(j = 1, align = "left", part = "all")
+```
+
+<br><br>
+
+```{r cpue-ls-cap}
+cpue_ls <- dat$cpue_ls %>% 
+  filter(rvr_code == "CO" &
+           spp_code == "SM") %>% 
+    mutate(ls_fct = as_factor(life_stage), 
+         ls_fct = fct_recode(ls_fct, 
+                             Juvenile = "JUV",
+                             Adult = "ADULT",
+                             Piscivore = "ADULT_PIC"),
+         ls_fct = fct_relevel(ls_fct, "Juvenile", "Adult", "Piscivore")) %>%
+  
+  
+  ggplot() +
+  geom_boxplot(aes(x = ls_fct, y = cpue)) +
+  labs(title = "Figure 5. CPUE by size class for smallmouth bass \nencountered within the Lower Westwater Reach, 2020",
+       x = "",
+       y = "Fish per hour")
+
+cap4 <- paste(capture.output(BrailleR::VI(cpue_ls)), collapse = " ")
+```
+
+<center>
+```{r cpue-ls-fig, fig.cap=cap4}
+cpue_ls
+
+```
+</center>
+
+<br><br>
+
+
+```{r}
+# Too few encounters for LFH!!!!
+
+lf_co <- fish_bio$LWW %>% 
+  fig_lf(.x = "SM", .fig_num = 6)
+# fig_lf(.data = fish_bio$LCO, .x = "WE")
+# fig_lf(.data = fish_bio$LCO, .x = "SM")
+# fig_lf(.data = fish_bio$LGR, .x = "SM")
+
+cap5 <- paste(capture.output(BrailleR::VI(lf_co)), collapse = " ")
+
+#generate alt data
+sum_lf <- summary(fish_bio$LWW$tot_length[fish_bio$LGR$spp_code == "SM"])
+nm_sum_lf <- names(sum_lf)
+vec_lf <- as.vector(round(sum_lf))
+dat_lf <- paste(nm_sum_lf, " = ", vec_lf, collapse = ", ")
+
+# better alt text
+extra_text <- " The visualized data can be summarized as follows: "
+fnl_cap5 <- paste(c(cap5, extra_text, dat_lf), collapse = "")
+
+```
+
+<center>
+```{r fig.cap=fnl_cap5}
+lf_co
+```
+
+</center>
+
+<br><br>
+
+___
+
+
+## Bureau of Reclamation Information
+
+### COLORADO RIVER RECOVERY PROGRAM			RECOVERY PROGRAM
+### FY `r yr` ANNUAL PROJECT REPORT				PROJECT NUMBER: <u> 123d </u>
+
+I.	Project Title: Walleye control in the Lower Green and Colorado Rivers.
+
+II.	Bureau of Reclamation Agreement Number(s): <br><br> 
+  UDWR Moab: R19AP00059 <br>                                                 
+  Project/Grant Period:  
+  Start date (Mo/Day/Yr): 10/01/2018  
+  End date: (Mo/Day/Yr): 09/30/2023  
+  Reporting period end date: 09/30/2020  
+  Is this the final report? Yes __ No  <u> X </u> <br><br>
+  
+  
+III.	Principal Investigator(s): <br><br>
+  Chris Michaud  
+  Utah Division of Wildlife Resources  
+  1165 S Hwy 191, Suite 4, 
+  Moab, UT 84532  
+  Phone: 435-259-3784;  
+  E-mail: cmichaud@utah.gov <br><br>
+
+
+IV.	Abstract: <br><br>
+Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$startdatetime))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$spp_code == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$spp_code == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
+
+
+V.	Study Schedule: <br><br>
+2014-ongoing <br><br>
+
+VI.	Relationship to RIPRAP: <br>  
+GENERAL RECOVERY PROGRAM SUPPORT ACTION PLAN   
+Reduce negative impacts of nonnative fishes and sportfish management 
+activities (nonnative and sportfish management).  
+Reduce negative interactions between nonnative and endangered fishes.  
+Identify and implement viable active control measures. <br>  
+GREEN RIVER ACTION PLAN: MAINSTEM  
+Reduce impacts of nonnative fishes and sportfish management activities 
+(nonnative and sportfish management).  
+Reduce negative impacts to endangered fishes from sportfish management
+activities.  
+Develop and implement control programs for nonnative fishes in river reaches
+occupied by the endangered fishes to identify required levels of control. Each
+control activity will be evaluated for effectiveness, and then continued as needed. <br>  
+COLORADO RIVER ACTION PLAN: MAINSTEM  
+Reduce impacts of nonnative fishes and sportfish management activities
+(nonnative and sportfish management).  
+Reduce negative interactions between nonnative and endangered fishes.  
+Develop basinwide aquatic management plan to reduce nonnative fish impacts
+while providing sportfishing opportunities. <br><br>
+
+VII.	Accomplishment of FY 2020 Tasks and Deliverables, Discussion of Initial Findings and Shortcomings: <br><br>
+See reach specific analysis tabs <br><br>
+
+VIII.	Additional noteworthy observations: <br><br>
+See reach specific analysis tabs <br><br>
+
+IX.	Recommendations: <br><br>  
+
+    * **Tusher Reach (Green River)**  
+  Continued application of effort between Tusher Diversion and Green River
+  State Park (RM 128-120) as this segment has the highest catch rates for walleye in
+  the reach. Removal should be conducted spring through early summer, or when justified by 
+  noteworthy catch rates. <br><br> 
+
+    * **Lower Grey Canyon (Green River)**  
+  Targeted walleye removal within this reach is not warranted at present time. Monitor through project 
+  123a (Deso bass removal) efforts when appropriate. <br><br>
+  
+    * **Lower Westwater Canyon (Colorado River)**  
+  Continued application of effort between Big Hole camp and Fish Ford (RM 116-105.5). Removal should be 
+  conducted spring through early summer, or when justified by noteworthy catch rates of walleye *or* 
+  smallmouth bass. <br><br>
+
+X.	Project Status: <br><br>
+On track and ongoing <br><br>
+
+XI.	FY 2020 Budget Status
+
+	A.	Funds Provided: $53,697
+	B.	Funds Expended: $53,697
+	C.	Difference:  $0
+	D.	Percent of the FY 2020 work completed, and projected costs to complete: 100%
+	E.	Recovery Program funds spent for publication charges: $0  <br><br>
+
+XII.	Status of Data Submission: <br><br> 
+Data will be uploaded into STReaMs by the end of January 2021. <br><br>
+
+XIII.	Signed:	<br>                                  		          
+Principal Investigator: <u> Christopher Michaud </u>	&nbsp;&nbsp;&nbsp;&nbsp;	Date: <u> 11/1/2020 </u>
+
+<br><br>

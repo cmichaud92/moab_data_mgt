@@ -1,0 +1,36 @@
+
+-- Build queries for automated reporting (123d)
+
+
+-- Site data
+
+SELECT SiteID AS id_site, StudyCode AS cd_study, s.RiverCode AS cd_rvr, 
+r.RiverName AS nm_rvr,
+StartLocation_BelknapMiles AS rmi_start_bel, 
+EndLocation_BelknapMiles AS rmi_end_bel, StartDateTime_UTC AS tm_start, 
+EndDateTime_UTC AS tm_end, Effort_Seconds AS amt_effort_sec 
+
+FROM moab_test.v_analysis_sitedata s
+
+INNER JOIN moab_test.d_river r
+ON s.RiverCode = r.RiverCode
+
+WHERE StudyCode = '123d' AND Year = 2020
+
+
+
+-- Fish data
+
+SELECT SiteID AS id_site, EncounterDateTime_UTC AS tm_encounter,
+f.SpeciesCode AS cd_spp, df.CommonName AS cn_spp, FishCount AS n_fish,
+TotalLength_mm AS tot_length, Weight_g AS weight, Sex AS cd_sex,
+IsRipe AS ind_ripe, DispositionCode AS cd_disp, Easting_UTM AS loc_x,
+Northing_UTM AS loc_y
+
+FROM moab_test.v_analysis_fishdata f
+
+INNER JOIN moab_test.d_species df
+ON f.SpeciesCode = df.SpeciesCode
+
+WHERE StudyCode = '123d' AND Year = 2020
+
