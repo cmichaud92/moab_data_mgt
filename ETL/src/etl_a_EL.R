@@ -326,10 +326,10 @@ if (exists("pit_tmp")) {
 # Floytag table
 if (exists("floy_tmp")) {
   floytag <- left_join(floy_tmp, samp_n, by = "key_a") %>%
-    left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
+    left_join(select(fish, key_aa, f_index, datetime, species), by = c("key_aa")) %>%
     arrange(datetime) %>%
     mutate(fl_index = row_number()) %>%
-    select(fl_index, s_index, key_aab, key_aa, site_id,
+    select(fl_index, s_index, f_index, key_aab, key_aa, site_id,
            species, floy_color, floy_num, floy_recap,
            floy_notes)
 } else {
@@ -339,10 +339,10 @@ if (exists("floy_tmp")) {
 # Vial table
 if (exists("vial_tmp")) {
   vial <- left_join(vial_tmp, samp_n, by = "key_a") %>%
-    left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
+    left_join(select(fish, key_aa, f_index, datetime, species), by = c("key_aa")) %>%
     arrange(datetime) %>%
     mutate(v_index = row_number()) %>%
-    select(v_index, s_index, key_aac, key_aa, site_id,
+    select(v_index, s_index, f_index, key_aac, key_aa, site_id,
            species, vial_num, vial_type, vial_notes)
 } else {
   message("No `floytag` data present")
@@ -368,6 +368,7 @@ site$end_rmi[site$s_index == 16] <- 72.8
 site$end_rmi[site$s_index == 10] <- 126.5
 site$start_rmi[site$s_index == 67] <- 114.8
 site$end_rmi[site$s_index == 40] <- 115.0
+site$end_rmi[site$s_index == 74] <- 114.5
 
 site <- site %>%
   mutate(startdatetime = if_else(enddatetime - startdatetime < el_sec, enddatetime - ((.1 * el_sec) + el_sec), startdatetime))
@@ -380,6 +381,14 @@ fish <- fish %>%
 pittag <- pittag %>%
   mutate(pit_type = "134",
          across(pit_num, ~ifelse(grepl('[0-9A-Z]{3}[.]{1}', .x), .x, gsub('^([0-9A-Z]{3})([0-9A-Z]+)$', '\\1.\\2', .x))))
+pittag$pit_recap[pittag$p_index == 9] <- "NNF"
+
+
+# Vial
+#
+# vial$vial_num[fnl_fish$f_index == 230] <- "05182113"
+# vial$vial_num[fnl_fish$f_index == 231] <- "05182114"
+# vial$vial_num[fnl_fish$f_index == 218] <- "05182101"
 
 #------------------------------
 # QC data.tables
@@ -403,20 +412,20 @@ if (exists("fish") && exists("site")) {
 if (exists("pittag")) {
   ck_pittag <- pittag %>%
     filter(s_index > last_num) %>%
-    pit_qcfx(fish_data = sbst_fish) %>%
+    pit_qcfx(fish_data = fish) %>%
     filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
   }
 
 if (exists("floytag")) {
   ck_floytag <- floytag %>%
     filter(s_index > last_num) %>%
-    floy_qcfx(fish_data = sbst_fish) %>%
+    floy_qcfx(fish_data = fish) %>%
     filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
   }
 
-if (exists("sbst_site") && exists("sbst_fish")) {
-  ck_stats <- stats_qcfx(site_data = sbst_site,
-                         fish_data = sbst_fish,
+if (exists("site") && exists("fish")) {
+  ck_stats <- stats_qcfx(site_data = site,
+                         fish_data = fish,
                          spp = TARGET)
 }
 
