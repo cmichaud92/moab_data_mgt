@@ -19,7 +19,7 @@
 
 # source functions
   source("./etl/src/qcfx_EL.R")
-
+  source("~/Documents/etc/bq_write-safe.R")
 # build "exclude"
   `%!in%` <- Negate(`%in%`)
 
@@ -179,13 +179,14 @@ if ("fish" %in% names(data)) {
            across(datetime, force_tz, tzone = "UTC")) %>%
     arrange(datetime) %>%
     mutate(f_index = row_number()) %>%
+    group_by(site_id, rmi) %>%
+    mutate(across(c(ilat, ilon), first))
     # mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),
     #                                                       x + 120, x)}) %>%
     select(f_index,
            key_aa,
            s_index,
            site_id,
-           #          reach,
            rmi, datetime,
            species, tot_length,
            weight, sex,
@@ -196,8 +197,8 @@ if ("fish" %in% names(data)) {
 
   fish_sf <- fish_1 %>%                                     # Convert long-lat to UTMs
     group_by(site_id, rmi) %>%
-    summarise(ilon = mean(ilon, na.rm = TRUE),
-              ilat = mean(ilat, na.rm = TRUE),
+    summarise(ilon = first(ilon, na.rm = TRUE),
+              ilat = first(ilat, na.rm = TRUE),
               .groups = "drop") %>%
     filter(!is.na(ilon)) %>%
     st_as_sf(coords = c("ilon", "ilat"), crs = 4326) %>%
@@ -275,6 +276,7 @@ if ("vial" %in% names(data)) {
 #------------------------------
 
 {
+  # Site table
   site$river[site$s_index == 16] <- "CO"
   site$reach[site$s_index == 16] <- "LCO"
   site$end_rmi[site$s_index == 16] <- 72.8
@@ -286,17 +288,45 @@ if ("vial" %in% names(data)) {
   site <- site %>%
     mutate(startdatetime = if_else(enddatetime - startdatetime < el_sec, enddatetime - ((.1 * el_sec) + el_sec), startdatetime))
 
+  # Fish table
+  data_cks(fish)
   fish <- fish %>%
+    filter(!is.na(species)) %>%
+    filter(!grepl("BOGUS FISH", fish_notes)) %>%
     mutate(across(disp, ~case_when(species %in% spp_nat ~ "RA",
                                    species %!in% spp_nat ~ "DE")))
 
+  fish$fish_notes[fish$f_index == 219] <- "Pit tagged prey item recovered from stomach (3DD.003BF2ECC0)"
+  fish_adds <- tibble(
+    key_a = "5af40a4m60tlahq",
+    s_index = 25,
+    key_aa = "recovered_from_prey_01",
+    site_id = "123d_2021_025",
+    rmi = 118,
+    datetime = ymd_hms("2021-05-18 12:06:22"),
+    species = "UI",
+    disp = "DE",
+    loc_x =
+    fish_notes = "Recovered from walleye's stomach"
+  )
+  fish <- bind_rows(fish, fish_adds)
   # Pittag
+  data_cks(pittag)
   pittag <- pittag %>%
     mutate(pit_type = "134",
            across(pit_num, ~ifelse(grepl('[0-9A-Z]{3}[.]{1}', .x), .x, gsub('^([0-9A-Z]{3})([0-9A-Z]+)$', '\\1.\\2', .x))))
-  pittag$pit_recap[pittag$p_index == 9] <- "NNF"
-
-
+#  pittag$pit_recap[pittag$p_index == 9] <- "NNF"
+  pittag$pit_notes[pittag$species == "BN"] <- "Originally recorded as 'BN' very likely a 'BT' :)"
+  pittag$species[pittag$species == "BN"] <- "BT"
+  ck <- fish %>%
+    filter(f_index == 219)
+  pittag$key_aa[pittag$pit_num == "3DD.003BF2ECC0"] <- "recovered_from_prey_01"
+  pittag$pit_notes[pittag$pit_num == "3DD.003BF2ECC0"] <- "Tag recovered from UI carcus inside walleye stomach"
+  ck <- pittag %>%
+    select(-c(s_index, site_id, species, key_a)) %>%
+    inner_join(fish)
+  ck <- pittag %>% filter(pit_num == "3DD.003BF2ECC0")
+  ck1 <- ck %>% inner_join(fish)
   # Vial
 
   vial$vial_num[vial$f_index == 34] <- "4192101"
@@ -319,58 +349,159 @@ if ("vial" %in% names(data)) {
 #------------------------------
 # QC data.tables
 #------------------------------
-ck_meta <- meta
 
-if (exists("site")) {
-  ck_site <- site %>%
-    filter(s_index > last_num) %>%
-    site_qcfx() %>%
-    mutate_if(is.POSIXct, force_tz, tzone = "UTC") %>%
-    filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
-}
+{
+  ck_meta <- meta
 
-if (exists("fish") && exists("site")) {
-  ck_fish <- fish_qcfx(fish_data = fish, site_data = site) %>%
-    mutate_if(is.POSIXct, force_tz, tzone = "UTC") %>%
-    filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
-}
-
-if (exists("pittag")) {
-  ck_pittag <- pittag %>%
-    filter(s_index > last_num) %>%
-    pit_qcfx(fish_data = fish) %>%
-    filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
+  if (exists("site")) {
+    ck_site <- site %>%
+      site_qcfx() %>%
+      mutate_if(is.POSIXct, force_tz, tzone = "UTC") %>%
+      filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
   }
 
-if (exists("floytag")) {
-  ck_floytag <- floytag %>%
+  if (exists("fish") && exists("site")) {
+    ck_fish <- fish_qcfx(fish_data = fish, site_data = site) %>%
+      mutate_if(is.POSIXct, force_tz, tzone = "UTC") %>%
+      filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
+  }
+
+  if (exists("pittag")) {
+    ck_pittag <- pittag %>%
+      filter(s_index > last_num) %>%
+      pit_qcfx(fish_data = fish) %>%
+      filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
+    }
+
+  if (exists("floytag")) {
+    ck_floytag <- floytag %>%
+      filter(s_index > last_num) %>%
+      floy_qcfx(fish_data = fish) %>%
+      filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
+    }
+
+  if (exists("site") && exists("fish")) {
+    ck_stats <- stats_qcfx(site_data = site,
+                           fish_data = fish,
+                           spp = TARGET)
+  }
+
+  if (exists("water")) {
+    ck_water_qual <- water %>%
+    filter(s_index > last_num)
+  }
+
+  if (exists("vial")) {
+    ck_vial <- vial %>%
     filter(s_index > last_num) %>%
-    floy_qcfx(fish_data = fish) %>%
     filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
-  }
-
-if (exists("site") && exists("fish")) {
-  ck_stats <- stats_qcfx(site_data = site,
-                         fish_data = fish,
-                         spp = TARGET)
+    }
 }
-
-if (exists("water")) {
-  ck_water_qual <- water %>%
-  filter(s_index > last_num)
-}
-
-if (exists("vial")) {
-  ck_vial <- vial %>%
-  filter(s_index > last_num) %>%
-  filter(if_any(ends_with("flg"), ~ .x == "FLAG"))
-  }
-
 
 #-----------------------------------
 # Restructure data and rename fields
 #-----------------------------------
 
-nst_vial
+# Water Quality
+data_cks(water)
+nst_water <- water %>%
+  select(SiteID = site_id,
+         AmbientConductivity_uS = cond_amb,
+         SpecificConductivity_uS = cond_spec,
+         WaterTemperature_C = rvr_temp,
+         SecchiDepth_mm = secchi,
+         Notes = water_notes) %>%
+  nest(WaterQuality = AmbientConductivity_uS:Notes)
+
+
+# Pit Tag
+data_cks(pittag)
+nst_pittag <- pittag %>%
+  mutate(PitTagType = as.character(pit_type),
+         IsPitTagRecapture = case_when(pit_recap == "Y" ~ TRUE,
+                                       pit_recap == "N" ~ FALSE)) %>%
+  select(key_aa,
+         PitTagString = pit_num,
+         IsPitTagRecapture,
+         PitTagType,
+         Notes = pit_notes) %>%
+  nest(PitTag = PitTagString:Notes)
+
+
+# # Floy Tag
+# nst_floytag <- floytag %>%
+#   mutate(IsFloyTagRecapture = case_when(floy_recap == "Y" ~ TRUE,
+#                                         floy_recap == "N" ~ FALSE)) %>%
+#   select(key_aa,
+#          SiteID = site_id,
+#          FloyTagString = floy_num,
+#          FloyTagColorCode = floy_color,
+#          IsFloyTagRecapture,
+#          Notes = floy_notes) %>%
+#   nest(FloyTag = FloyTagString:Notes)
+
+
+# Fish Data
+nst_fish <- fish %>%
+  mutate(FishCount = 1,
+         IsRipe = case_when(grepl("^EXP", rep_cond) ~ TRUE,
+                            grepl("^INT|NOT", rep_cond) ~ FALSE),
+         IsTuberculate = case_when(species %in% spp_nat &
+                                     tubercles == "Y" ~ TRUE,
+                                   species %in% spp_nat &
+                                     tubercles == "N" ~ FALSE)) %>%
+  separate(ray_ct, into = c("DorsalRayCount", "AnalRayCount"), sep = "/") %>%
+  select(key_aa,
+         SiteID = site_id,
+         EncounterDateTime_UTC = datetime,
+         EncounterLocation_BelknapMiles = rmi,
+         SpeciesCode = species,
+         FishCount,
+         TotalLength_mm = tot_length,
+         Weight_g = weight,
+         Sex = sex,
+         IsRipe,
+         IsTuberculate,
+         DorsalRayCount,
+         AnalRayCount,
+         DispositionCode = disp,
+         Easting_UTM = loc_x,
+         Northing_UTM = loc_y,
+         EPSGCode = epsg,
+         Notes = fish_notes) %>%
+  left_join(nst_pittag, by = "key_aa") %>%
+#  left_join(nst_floytag, by = "SiteID") %>%
+  nest(FishData = c(EncounterDateTime_UTC:PitTag)) %>%
+  select(-key_aa)
+
+
+# Final nested site data
+fnl_site <- site %>%
+  select(SiteID = site_id,
+         StudyCode = project,
+         RiverCode = river,
+         PassIdentifier = pass,
+         StartLocation_BelknapMiles = start_rmi,
+         EndLocation_BelknapMiles = end_rmi,
+         StartDateTime_UTC = startdatetime,
+         EndDateTime_UTC = enddatetime,
+         Shoreline = shoreline,
+         Effort_Seconds = el_sec,
+         BoatName = boat,
+         CrewNames = crew,
+         Notes = site_notes) %>%
+  left_join(nst_water, by = "SiteID") %>%
+  left_join(nst_fish, by = "SiteID")
+
+}
+
+
+# Write data to Big Query
+
+if (exists("site")) {
+  message("place code here")
+}
+
+
 ## End
 
