@@ -88,6 +88,7 @@ if (nrow(qc_sheet) > 1) {                       # There are multiple QAQC sheets
   sheets_dat <- list()
   sheets_dat$last_num <- 0
   sheets_dat$exists_key_a <- ""
+  message("No existing QAQC sheet. Starting site number = 0")
 
 } else if (nrow(qc_sheet) == 1) {               # There is an existing QAQC sheet for this project-year
 
@@ -103,6 +104,8 @@ if (nrow(qc_sheet) > 1) {                       # There are multiple QAQC sheets
 
   sheets_dat$exist_key_a <- tmp %>%
     pull(key_a)
+
+  message("QAQC sheet exists, check sheets_dat for details")
 }
 
 
