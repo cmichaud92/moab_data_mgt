@@ -46,7 +46,7 @@ if (grepl("^160", STUDY)) {
 
 # default = authenticates to PI's account
 
-CONFIG = "management"
+CONFIG = "macos"
 # CONFIG = "development"
 
 
@@ -55,7 +55,7 @@ CONFIG = "management"
 {
   Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
   config <- config::get(value = paste0(STUDY, "_config"),
-                        file = "T:/Shared drives/DNR_MoabFieldOffice/Data_mgt/etc/config_proj.yml")
+                        file = "/Users/christophermichaud/Documents/etc/config_proj.yml")
 
 }
 
@@ -82,28 +82,35 @@ if (CONFIG == "development") {
 
 }
 
-# ----- Determine nrows for filter -----
+# Scrape info from QAQC-sheet if it exists
 
-if (nrow(qc_sheet) > 1) {
+if (nrow(qc_sheet) > 1) {                       # There are multiple QAQC sheets for this project-year ???
 
   stop("Problem with google sheets")
 
-  } else if (nrow(qc_sheet) == 0) {
+} else if (nrow(qc_sheet) == 0) {               # There is no existing QAQC sheet for this project-year
 
-  last_num <- 0
+  sheets_dat <- list()
+  sheets_dat$last_num <- 0
+  sheets_dat$exists_key_a <- ""
+  message("No existing QAQC sheet. Starting site number = 0")
 
-  } else if (nrow(qc_sheet) == 1) {
+} else if (nrow(qc_sheet) == 1) {               # There is an existing QAQC sheet for this project-year
+
   tmp <- read_sheet(qc_sheet, range = "site")
-  last_num <- tmp %>%
+
+  sheets_dat <- list()
+
+  sheets_dat$last_num <- tmp %>%                # Calculate the site_id start number
     pull(site_id) %>%
     max() %>%
     str_sub(start = -3) %>%
     as.integer()
 
-  } else {
+  sheets_dat$exist_key_a <- tmp %>%
+    pull(key_a)
 
-  stop("Problem with google sheets")
-
+  message("QAQC sheet exists, check sheets_dat for details")
 }
 
 
@@ -147,7 +154,9 @@ if ("site" %in% names(data)) {
 
   tmp_site <- map_df(data[grepl("site", names(data))], bind_rows) %>%
     mutate(across(where(is.character), na_if, "Z"),
-           across(where(is.numeric), na_if, 0))
+           across(where(is.numeric), na_if, 0)) %>%
+    filter(key_a %!in% sheets_dat$exist_key_a)
+
 
 } else {
   warning("No `site` data present")
@@ -156,28 +165,36 @@ if ("site" %in% names(data)) {
 
 # Haul data
 if ("haul" %in% names(data)) {
+
   tmp_haul <- map_df(data[grepl("haul", names(data))], bind_rows) %>%
-  mutate(across(where(is.character), na_if, "Z"))                                                # Converts "Z"s to NA
-} else {
+  mutate(across(where(is.character), na_if, "Z")) %>%
+    filter(key_a %!in% sheets_dat$exist_key_a)
+
+  } else {
   message("No `water` data present")
 }
 
 # Fish data
 if ("fish" %in% names(data)) {
+
   tmp_fish <- map_df(data[grepl("fish", names(data))], bind_rows) %>%
     mutate(across(c(tot_length, weight),                                  # Converts 0's to NA
               function(x) {ifelse(x == 0, NA, x)}),
-           across(where(is.character), na_if, "Z"))                        # Converts "Z"s to NA
-} else {
+           across(where(is.character), na_if, "Z")) %>%
+    filter(key_a %!in% sheets_dat$exist_key_a)
+
+  } else {
   warning("No `fish` data present")
 }
 
 # Count
 if ("count" %in% names(data)) {
+
   tmp_ct <- map_df(data[grepl("count", names(data))], bind_rows) %>%
     filter(!is.na(species)) %>%
-    mutate(across(where(is.character), na_if, "Z"))                                               # Converts "Z"s to NA
-} else {
+    mutate(across(where(is.character), na_if, "Z")) %>%
+    filter(key_a %!in% sheets_dat$exist_key_a)
+  } else {
   message("No `pittag` data present")
 }
 
@@ -185,18 +202,20 @@ if ("count" %in% names(data)) {
 if ("vial" %in% names(data)) {
   tmp_vial <- map_df(data[grepl("vial", names(data))], bind_rows) %>%
     filter(!is.na(vial_num)) %>%
-    mutate(across(where(is.character), na_if, "Z"))
-} else {
+    mutate(across(where(is.character), na_if, "Z")) %>%
+    filter(key_a %!in% sheets_dat$exist_key_a)
+
+  } else {
   message("No `vial` data present")
 }
 
-# Vial
-if ("vial" %in% names(data)) {
-  vial_tmp <- map_df(data[grepl("vial", names(data))], bind_rows) %>%
-    mutate_all(na_if, "Z")
-} else {
-  message("No `vial` data present")
-}
+# # Vial
+# if ("vial" %in% names(data)) {
+#   vial_tmp <- map_df(data[grepl("vial", names(data))], bind_rows) %>%
+#     mutate_all(na_if, "Z")
+# } else {
+#   message("No `vial` data present")
+# }
 
 #------------------------------
 # Modify data
@@ -388,17 +407,6 @@ if (exists("tmp_vial")) {
 
 
 #------------------------------
-
-#------------------------------
-
-# Include only records NOT already appended to gsheets
-sbst_site <- site %>%
-  filter(s_index > last_num)
-
-sbst_fish <- fish %>%
-  filter(s_index > last_num)
-
-#------------------------------
 # QC data.tables
 #------------------------------
 
@@ -406,7 +414,6 @@ ck_meta <- meta
 
 if (exists("site")) {
   ck_site <- site %>%
-    filter(s_index > last_num) %>%
     site_qcfx() %>%
     mutate_if(is.POSIXct, force_tz, tzone = "UTC")
 }
