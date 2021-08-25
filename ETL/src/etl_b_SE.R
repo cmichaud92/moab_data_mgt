@@ -94,63 +94,30 @@ if (nrow(qc_sheet) == 0) {
     nest(WaterQuality = WaterTemperatureMain_C:SecchiDepthHabitat_mm)
 
 
-  # Pit Tag
-  nst_pittag <- fnl_dat$pittag %>%
-    mutate(PitTagType = as.character(pit_type),
-           IsPitTagRecapture = case_when(pit_recap == "Y" ~ TRUE,
-                                         pit_recap == "N" ~ FALSE)) %>%
-    select(SiteID = site_id,
-           PitTagString = pit_num,
-           IsPitTagRecapture,
-           PitTagType,
-           Notes = pit_notes) %>%
-    nest(PitTag = PitTagString:Notes)
-
-
-  # Floy Tag
-  nst_floytag <- fnl_dat$floytag %>%
-    mutate(IsFloyTagRecapture = case_when(floy_recap == "Y" ~ TRUE,
-                                          floy_recap == "N" ~ FALSE)) %>%
-    select(SiteID = site_id,
-           FloyTagString = floy_num,
-           FloyTagColorCode = floy_color,
-           IsFloyTagRecapture,
-           Notes = floy_notes) %>%
-    nest(FloyTag = FloyTagString:Notes)
-
 
   # Fish Data
   nst_fish <- fnl_dat$fish %>%
-    mutate(FishCount = 1,
-           IsRipe = case_when(grepl("^EXP", rep_cond) ~ TRUE,
-                              grepl("^INT|NOT", rep_cond) ~ FALSE),
-           IsTuberculate = case_when(species %in% spp_nat &
-                                       tubercles == "Y" ~ TRUE,
-                                     species %in% spp_nat &
-                                       tubercles == "N" ~ FALSE)) %>%
-    separate(ray_ct, into = c("DorsalRayCount", "AnalRayCount"), sep = "/") %>%
-    select(SiteID = site_id,
-           EncounterDateTime_UTC = datetime,
-           EncounterLocation_BelknapMiles = rmi,
-           SpeciesCode = species,
-           FishCount,
+    mutate(across(where(is.logical), as.character)) %>%
+    select(HaulID = id_haul,
+           SpeciesCode = cd_spp,
+           FishCount = n_fish,
            TotalLength_mm = tot_length,
            Weight_g = weight,
-           Sex = sex,
-           IsRipe,
-           IsTuberculate,
-           DorsalRayCount,
-           AnalRayCount,
-           DispositionCode = disp,
-           Easting_UTM = loc_x,
-           Northing_UTM = loc_y,
-           EPSGCode = epsg,
+           DispositionCode = cd_disp,
            Notes = fish_notes) %>%
-    left_join(nst_pittag, by = "SiteID") %>%
-    left_join(nst_floytag, by = "SiteID") %>%
-    nest(FishData = c(EncounterDateTime_UTC:FloyTag))
+    nest(FishData = c(SpeciesCode:Notes))
 
-
+  # Haul Data
+  nst_haul <- fnl_dat$haul %>%
+    select(SiteID = id_site,
+           HaulID = id_haul,
+           GearCode = cd_gear,
+           HaulDateTime_Local = haul_datetime,
+           HaulLength_m = haul_length,
+           HaulWidth_m = haul_width,
+           HaulMeanDepth_mm = haul_avg_depth,
+           PrimarySubstrate = cd_sub,
+           )
   # Final nested site data
   site <- fnl_dat$site %>%
     select(SiteID = site_id,

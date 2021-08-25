@@ -257,17 +257,17 @@
       },
       {
         "description": "Are red shiners present in haul - 160se",
-        "name": "IsRedShinerPresent",
+        "name": "HasRedShiner",
         "type": "STRING"
       },
       {
         "description": "Are sand shiners present in haul - 160se",
-        "name": "IsSandShinerPresent",
+        "name": "HasSandShiner",
         "type": "STRING"
       },
       {
         "description": "Are fathead minnows present in haul - 160se",
-        "name": "IsFatHeadPresent",
+        "name": "HasFatHead",
         "type": "STRING"
       },
       {
