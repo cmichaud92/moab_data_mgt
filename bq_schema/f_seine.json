@@ -154,6 +154,12 @@
         "type": "INTEGER"
       },
       {
+        "description": "Is the habitat visibility greater than the maximum habitat depth? Meaning secchi depth cannot be collected",
+        "mode": "NULLABLE",
+        "name": "IsSecchiMaxDepth",
+        "type": "BOOLEAN"
+      },
+      {
         "description": "Interesting observations related to water quality",
         "name": "WaterQualityNotes",
         "type": "STRING"

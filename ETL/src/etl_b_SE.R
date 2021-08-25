@@ -86,11 +86,14 @@ if (nrow(qc_sheet) == 0) {
 
   # Water Quality
   nst_water <- fnl_dat$site %>%
+    mutate(IsSecchiMaxDepth = ifelse(!is.na(hab_secchi), FALSE, TRUE),
+           WaterQualityNotes = grep("^[Ss]ecchi", site_notes)) %>%
     select(SiteID = id_site,
            WaterTemperatureMain_C = mc_temp,
            SecchiDepthMain_mm = mc_secchi,
            WaterTemperatureHabitat_C = hab_temp,
-           SecchiDepthHabitat_mm = hab_secchi) %>%
+           SecchiDepthHabitat_mm = hab_secchi,
+           IsSecchiMaxDepth) %>%
     nest(WaterQuality = WaterTemperatureMain_C:SecchiDepthHabitat_mm)
 
 
@@ -104,8 +107,8 @@ if (nrow(qc_sheet) == 0) {
            TotalLength_mm = tot_length,
            Weight_g = weight,
            DispositionCode = cd_disp,
-           Notes = fish_notes) %>%
-    nest(FishData = c(SpeciesCode:Notes))
+           FishNotes = fish_notes) %>%
+    nest(FishData = c(SpeciesCode:FishNotes))
 
   # Haul Data
   nst_haul <- fnl_dat$haul %>%
@@ -117,24 +120,36 @@ if (nrow(qc_sheet) == 0) {
            HaulWidth_m = haul_width,
            HaulMeanDepth_mm = haul_avg_depth,
            PrimarySubstrate = cd_sub,
-           )
+           HasRedShiner = rs,
+           HasSandShiner = ss,
+           HasFatHead = fh,
+           HaulNotes = haul_notes) %>%
+    mutate(across(matches("^Has"), ~ case_when(.x == "Y" ~ TRUE,
+                                               .x == "N" ~ FALSE))) %>%
+    left_join(nst_fish, by = "HaulID") %>%
+    nest(HaulData = HaulID:FishData)
+
   # Final nested site data
   site <- fnl_dat$site %>%
-    select(SiteID = site_id,
-           StudyCode = project,
-           RiverCode = river,
+    mutate(SiteEPSGCode = 4326) %>%
+    select(SiteID = id_site,
+           StudyCode = study,
+           RiverCode = cd_rvr,
            PassIdentifier = pass,
-           StartLocation_BelknapMiles = start_rmi,
-           EndLocation_BelknapMiles = end_rmi,
-           StartDateTime_UTC = startdatetime,
-           EndDateTime_UTC = enddatetime,
-           Shoreline = shoreline,
-           Effort_Seconds = el_sec,
-           BoatName = boat,
+           SiteLocation_BelknapMiles = rmi,
+           SiteDate_Local = date,
+           PrimaryHabitatCode = hab_1,
+           SecondaryHabitatCode = hab_2,
+           HabitatLength_m = hab_length,
+           HabitatWidth_m = hab_width,
+           HabitatMaxDepth_mm = hab_mx_dep,
+           SiteLongitude_DD = ilon,
+           SiteLatitude_DD = ilat,
+           SiteEPSGCode,
            CrewNames = crew,
-           Notes = site_notes) %>%
+           SiteNotes = site_notes) %>%
     left_join(nst_water, by = "SiteID") %>%
-    left_join(nst_fish, by = "SiteID")
+    left_join(nst_haul, by = "SiteID")
 
 }
 
