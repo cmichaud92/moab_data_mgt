@@ -102,7 +102,7 @@ if (nrow(qc_sheet) > 1) {                       # There are multiple QAQC sheets
   sheets_dat <- list()
 
   sheets_dat$last_num <- tmp %>%                # Calculate the site_id start number
-    pull(site_id) %>%
+    pull(id_site) %>%
     max() %>%
     str_sub(start = -3) %>%
     as.integer()
@@ -370,6 +370,7 @@ if (exists("tmp_fish")) {
 
 }
 
+# Add fish counts (count table) to the fish data table
 if (exists("fish") & exists("count")) {
 
   fish <- fish %>%
@@ -386,7 +387,7 @@ if (exists("fish") & exists("count")) {
 
 if (exists("tmp_vial")) {
 
-  vial <- left_join(vial_tmp, samp_n, by = c("key_a", "key_aa")) %>%
+  vial <- left_join(tmp_vial, samp_n, by = c("key_a", "key_aa")) %>%
     arrange(id_haul) %>%
     select(id_haul,
            id_site,
@@ -414,33 +415,46 @@ ck_meta <- meta
 
 if (exists("site")) {
   ck_site <- site %>%
-    site_qcfx() %>%
-    mutate_if(is.POSIXct, force_tz, tzone = "UTC")
+    arrange(id_site)
 }
 
-if (exists("fish") && exists("site")) {
-  ck_fish <- fish_qcfx(fish_data = sbst_fish, site_data = sbst_site) %>%
-    mutate_if(is.POSIXct, force_tz, tzone = "UTC")
+if (exists("haul") && exists("site")) {
+  ck_haul <- haul %>%
+    left_join(select(site,
+                     id_site,
+                     pass,
+                     cd_rvr,
+                     cd_rch,
+                     rmi),
+               by = "id_site") %>%
+    arrange(id_haul)
 }
 
-if (exists("pittag")) {
-  ck_pittag <- pittag %>%
-    filter(s_index > last_num) %>%
-    pit_qcfx(fish_data = sbst_fish)}
+if (exists("ck_haul") && exists("fish")) {
 
-if (exists("floytag")) {
-  ck_floytag <- floytag %>%
-    filter(s_index > last_num) %>%
-    floy_qcfx(fish_data = sbst_fish)
-  }
+  ck_fish <- fish %>%
+    left_join(select(ck_haul,
+                     id_haul,
+                     pass,
+                     cd_rvr,
+                     cd_rch,
+                     rmi),
+              by = "id_haul") %>%
+    arrange(id_haul)
+}
 
-if (exists("sbst_site") && exists("sbst_fish")) {ck_stats <- stats_qcfx(site_data = sbst_site, fish_data = sbst_fish, spp = TARGET)}
+if (exists("ck_haul") && exists("vial")) {
 
-if (exists("water")) {ck_water_qual <- water %>%
-  filter(s_index > last_num)}
-
-if (exists("vial")) {ck_vial <- vial %>%
-  filter(s_index > last_num)}
+  ck_vial <- vial %>%
+    left_join(select(ck_haul,
+                     id_haul,
+                     pass,
+                     cd_rvr,
+                     cd_rch,
+                     rmi),
+              by = "id_haul") %>%
+    arrange(id_haul)
+}
 
 
 #-----------------------------------
@@ -448,13 +462,14 @@ if (exists("vial")) {ck_vial <- vial %>%
 #-----------------------------------
 if (nrow(ck_site) == 0) {
 
-  message("No new data to add!!!")
+  stop("No new data to add!!!")
+
 } else {
 
 ck_names<-grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
   sort()
 
-ck_dat<-do.call("list",mget(ck_names))
+ck_dat<-do.call("list", mget(ck_names))
 
 fnl_names <- str_remove(ck_names, "ck_")
 
@@ -480,6 +495,7 @@ if (nrow(qc_sheet) == 0) {
 
   names(ck_dat) %>%
     map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
+
   } else {
 
   stop("issues with google sheets")
