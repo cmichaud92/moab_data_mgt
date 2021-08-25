@@ -203,7 +203,7 @@
       {
         "description": "Primary substrate encountered in haul",
         "name": "PrimarySubstrate",
-        "type": "INTEGER"
+        "type": "STRING"
       },
       {
         "description": "Depth taken at location 1, measured in millimeters - ISMP",
