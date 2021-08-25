@@ -1,0 +1,52 @@
+*/ v_summary_study
+This view pulls data from moab field office projects, creates useful features,
+summarises KPIs and yeilds a high level overview of performance.
+/* 
+
+WITH 
+  --cte generates summary "effort" data
+  e AS (
+    SELECT StudyCode, RiverCode,
+      EXTRACT (YEAR FROM StartDateTime_UTC) AS Year,
+      EXTRACT (DATE FROM MIN(StartDateTime_UTC)) AS EffortStartDate,
+      EXTRACT (DATE FROM MAX(StartDateTime_UTC)) AS EffortEndDate,
+      COUNT (DISTINCT (EXTRACT (DATE FROM StartDateTime_UTC))) AS NumberDaysSampled,
+      ROUND (SUM (Effort_Seconds)/3600, 1) AS Effort_Hours,
+      COUNT (*) as NumberSamples,
+      CASE WHEN StudyCode = "123a" AND RiverCode = "GR" AND StartLocation_BelknapMiles BETWEEN 132 AND 250 THEN "123a-DESO"
+         WHEN StudyCode = "123a" AND RiverCode = "GR" AND StartLocation_BelknapMiles >= 250 THEN "123a-ECHO" 
+         WHEN StudyCode = "123d" AND RiverCode = "GR" AND StartLocation_BelknapMiles BETWEEN 130 AND 150 THEN "123d-GRAY" ELSE StudyCode
+         END phase
+         
+    FROM moab_test.f_electrofish
+
+    GROUP BY StudyCode, Year, RiverCode, phase
+),
+  -- cte for summarised fish data
+  f AS (
+    SELECT 
+      EXTRACT (year FROM StartDateTime_UTC) AS Year,
+      StudyCode, RiverCode, f.SpeciesCode,
+      COUNT(SpeciesCode) AS FishCount,
+      CASE WHEN StudyCode = "123a" AND RiverCode = "GR" AND StartLocation_BelknapMiles BETWEEN 132 AND 250 THEN "123a-DESO"
+       WHEN StudyCode = "123a" AND RiverCode = "GR" AND StartLocation_BelknapMiles >= 250 THEN "123a-ECHO" 
+       WHEN StudyCode = "123d" AND RiverCode = "GR" AND StartLocation_BelknapMiles BETWEEN 130 AND 150 THEN "123d-GRAY" ELSE StudyCode
+       END phase
+
+    FROM moab_test.f_electrofish
+
+    CROSS JOIN UNNEST(FishData) AS f
+    WHERE SpeciesCode IS NOT NULL
+    GROUP BY StudyCode, Year, RiverCode, phase, SpeciesCode
+)
+
+-- Implement phase as StudyCode and generate CPUE calculations
+SELECT e.RiverCode, e.phase AS StudyCode,  e.Year, Effort_Hours, EffortStartDate, EffortEndDate, NumberDaysSampled, SpeciesCode, FishCount, ROUND(f.FishCount / e.Effort_Hours, 2) AS FishPerHour
+
+-- Finally join cte's 
+FROM e
+  FULL JOIN f
+  ON (e.Year = f.Year 
+    AND e.StudyCode = f.StudyCode
+    AND e.RiverCode = f.RiverCode
+    AND e.phase = f.phase)
