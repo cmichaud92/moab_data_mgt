@@ -1,8 +1,19 @@
 
+###############################################################
+#           160 Seining data restructure and loading          #
+###############################################################
+
+
+# Script pulls a QAQC'd data set from Google Sheets, restructures the data,
+#   Checks SiteID values against the Big Query f_seine table. It fails to upload
+#   if duplicated SiteIDs are identified using write_safe().
+
+
 #-------------------------------
-# Attach packages
+# Setup
 #-------------------------------
 
+# ----- Attach Packages -----
 {
   library(tidyverse)
   library(lubridate)
@@ -19,15 +30,15 @@ source("~/Documents/etc/bq_write-safe.R")
 # build "exclude"
 `%!in%` <- Negate(`%in%`)
 
-#------------------------
-# User defined variables
-#------------------------
+
+# ----- Declare variables -----
 
 # Study
 STUDY <- "160se"
 
 # Data year (should be current year)
 YEAR <- year(now())
+
 
 # ----- Specify the configuration environment -----
 
