@@ -131,18 +131,21 @@ if (nrow(qc_sheet) == 0) {
 
   # Final nested site data
   site <- fnl_dat$site %>%
-    mutate(SiteEPSGCode = 4326) %>%
+    mutate(SiteEPSGCode = 4326,
+           PassIdentifier = as.character(pass),
+           SiteDate_Local = as.Date(date),
+           .keep = "unused") %>%
     select(SiteID = id_site,
            StudyCode = study,
            RiverCode = cd_rvr,
-           PassIdentifier = pass,
+           PassIdentifier,
            SiteLocation_BelknapMiles = rmi,
-           SiteDate_Local = date,
+           SiteDate_Local,
            PrimaryHabitatCode = hab_1,
            SecondaryHabitatCode = hab_2,
-           HabitatLength_m = hab_length,
-           HabitatWidth_m = hab_width,
-           HabitatMaxDepth_mm = hab_mx_dep,
+           SiteLength_m = hab_length,
+           SiteWidth_m = hab_width,
+           SiteMaxDepth_mm = hab_mx_dep,
            SiteLongitude_DD = ilon,
            SiteLatitude_DD = ilat,
            SiteEPSGCode,
@@ -157,6 +160,7 @@ if (nrow(qc_sheet) == 0) {
 # Write data to Big Query
 
 if (exists("site")) {
-  message("place code here")
+  write_safe(df = site)
+#  message("place code here")
 }
 
