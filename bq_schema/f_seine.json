@@ -339,6 +339,12 @@
             "type": "STRING"
           },
           {
+            "description": "State of individual following sampling encounter - UCRB program code",
+            "name": "PhotoURLorID",
+            "type": "STRING"
+          },
+
+          {
             "description": "Additional observations related to the individual fish",
             "name": "FishEncounterNotes",
             "type": "STRING"

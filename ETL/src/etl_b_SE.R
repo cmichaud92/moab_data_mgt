@@ -118,8 +118,8 @@ if (nrow(qc_sheet) == 0) {
            TotalLength_mm = tot_length,
            Weight_g = weight,
            DispositionCode = cd_disp,
-           FishNotes = fish_notes) %>%
-    nest(FishData = c(SpeciesCode:FishNotes))
+           FishEncounterNotes = fish_notes) %>%
+    nest(FishData = c(SpeciesCode:FishEncounterNotes))
 
   # Haul Data
   nst_haul <- fnl_dat$haul %>%
