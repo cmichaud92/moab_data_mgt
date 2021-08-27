@@ -87,15 +87,15 @@ if (nrow(qc_sheet) == 0) {
   # Water Quality
   nst_water <- fnl_dat$site %>%
     mutate(IsSecchiMaxDepth = ifelse(!is.na(hab_secchi), FALSE, TRUE),
-           WaterQualityNotes = grep("^[Ss]ecchi", site_notes)) %>%
+           WaterQualityNotes = str_extract(site_notes, ".*[Ss]ecchi.*")) %>%
     select(SiteID = id_site,
            WaterTemperatureMain_C = mc_temp,
            SecchiDepthMain_mm = mc_secchi,
            WaterTemperatureHabitat_C = hab_temp,
            SecchiDepthHabitat_mm = hab_secchi,
-           IsSecchiMaxDepth) %>%
-    nest(WaterQuality = WaterTemperatureMain_C:SecchiDepthHabitat_mm)
-
+           IsSecchiMaxDepth,
+           WaterQualityNotes) %>%
+    nest(WaterQuality = WaterTemperatureMain_C:WaterQualityNotes)
 
 
   # Fish Data
