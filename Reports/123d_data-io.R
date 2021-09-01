@@ -61,18 +61,26 @@ CONFIG <- "macos"
 {
   bq_auth(email = config$email)
 
-  bq <- dbConnect(
+  bq_view <- dbConnect(
     bigrquery::bigquery(),
     project = config$bq_project,
-    dataset = config$bq_dataset,
+    dataset = config$bq_view,
+    billing = config$bq_project
+  )
+
+  bq_dimension <- dbConnect(
+    bigrquery::bigquery(),
+    project = config$bq_project,
+    dataset = config$bq_dimension,
     billing = config$bq_project
   )
 }
 
-tmp_site <- tbl(bq, "v_analysis_sitedata") %>%
+tmp_site <- tbl(bq_view, "electrofish_sitedata") %>%
   filter(Year == {{YEAR}} &
            StudyCode == "123d") %>%
-  left_join(tbl(bq, "d_river"), by = "RiverCode") %>%
+  collect() %>%
+  left_join(tbl(bq_dimension, "d_river"), by = "RiverCode", copy = TRUE) %>%
   select(cd_study = StudyCode,
          cd_rvr = RiverCode,
          nm_rvr = RiverName,
@@ -85,10 +93,12 @@ tmp_site <- tbl(bq, "v_analysis_sitedata") %>%
 
 write_csv(tmp_site, "./Reports/Rept-data/test_123d_2020_ar-site.csv")
 
-tmp_fish <- tbl(bq, "v_analysis_fishdata") %>%
+# fish biometric data
+tmp_fish <- tbl(bq_view, "electrofish_fishdata") %>%
   filter(Year == {{YEAR}} &
            StudyCode == "123d") %>%
-  left_join(tbl(bq, "d_species"), by = "SpeciesCode") %>%
+  collect() %>%
+  left_join(tbl(bq_dimension, "d_species"), by = "SpeciesCode", copy = TRUE) %>%
   select(id_site = SiteID,
          tm_encounter = EncounterDateTime_UTC,
          cd_spp = SpeciesCode,
@@ -105,6 +115,20 @@ tmp_fish <- tbl(bq, "v_analysis_fishdata") %>%
 
 write_csv(tmp_fish, "./Reports/Rept-data/test_123d_2020_ar-fish.csv")
 
+# Fish count data (aggregated to SiteID)
+s_ids <- tmp_site %>%
+  pull(id_site)
+tmp_count <-  tbl(bq_view, "electrofish_fishcount") %>%
+  filter(SiteID %in% s_ids) %>%
+  collect() %>%
+  left_join(tbl(bq_dimension, "d_species"), by = "SpeciesCode", copy = TRUE) %>%
+  select(id_site = SiteID,
+         cd_spp = SpeciesCode,
+         cn_spp = CommonName,
+         n_fish = FishCount) %>%
+  collect()
+
+write_csv(tmp_count, paste("./Reports/Rept-data/test", config$study, YEAR, "ar-count.csv", sep = "_"))
 # ----- WaterData -----
 
 # Green River
@@ -128,9 +152,8 @@ gr <- importDVs(staid = "09315000",
 
             by = c("staid", "date")
     ) %>%
-  mutate(sta_name = "Green River, Utah",
-         rvr_code = "GR",
-         rch_code = "LGR")
+  mutate(nm_station = "Green River, Utah",
+         cd_rvr = "GR")
 
 # Colorado River
 co <- importDVs(staid = "09180500",
@@ -155,9 +178,8 @@ co <- importDVs(staid = "09180500",
             by = c("staid", "date")
     ) %>%
 
-  mutate(sta_name = "Near Cisco, Utah (Dewey)",
-         rvr_code = "CO",
-         rch_code = "LCO")
+  mutate(nm_station = "Near Cisco, Utah (Dewey)",
+         cd_rvr = "CO")
 
 waterdata <- bind_rows(co, gr)
 

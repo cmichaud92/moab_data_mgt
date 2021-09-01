@@ -37,7 +37,7 @@ mapviewOptions(basemaps = c("Esri.WorldImagery", "OpenTopoMap", "CartoDB.Positro
 
 # Fetch final datasets 123d_2020.csv's 
 files <- list.files(path = "./Reports/Rept-data/", 
-                    pattern = ".csv$",
+                    pattern = "test.*.csv$",
                     full.names = TRUE)
 
 dat <- map(files, read_csv)
@@ -104,22 +104,22 @@ yr = unique(year(tmp_site$tm_end))
 ```{r data-transformation}
 # Modify site tbl
 site <- tmp_site %>% 
-  mutate(rch_code = case_when(cd_rvr == "CO" ~ "LCO",
+  mutate(cd_rch = case_when(cd_rvr == "CO" ~ "LCO",
                               cd_rvr == "GR" &
                                 between(rmi_start_bel, 100, 129.5) ~ "LGR",
                               cd_rvr == "GR" &
                                 rmi_start_bel > 129.5 ~ "DESO"),
-         rch_name = case_when(rch_code == "LWW" ~ "Lower Colorado River",
-                              rch_code == "DESO" ~ "Lower Gray Canyon",
-                              rch_code == "LGR" ~ "Tusher"),
-         date = as.Date(startdatetime),
-         week = week(startdatetime)) %>% 
-  left_join(dat$usgswater, by = c("rvr_code", "date"))
+         nm_rch = case_when(cd_rch == "LCO" ~ "Lower Colorado River",
+                              cd_rch == "DESO" ~ "Lower Gray Canyon",
+                              cd_rch == "LGR" ~ "Tusher"),
+         date = as.Date(tm_end),
+         week = week(tm_end)) %>% 
+  left_join(dat$water, by = c("cd_rvr", "date"))
 
 site_rch <- site %>%
-  split(.$rch_code)
+  split(.$cd_rch)
 
-reach_tmp <- select(site, site_id, rch_code, rch_name, rvr_code, rvr_name)
+reach_tmp <- select(site, id_site, cd_rch, nm_rch, cd_rvr, nm_rvr)
 ```
 
 
@@ -133,20 +133,20 @@ samp_stats <- list(
 )
 
 s_summary <- site %>%
-  group_by(rvr_code, rvr_name, rch_name, rch_code) %>% 
-  summarise(across(.cols = c(starts_with("date"), ends_with("RMI"), discharge, rvr_temp), samp_stats),
-            effort_hr = round(sum(el_sec, na.rm = TRUE)/3600, 1),
-            sampl_days = length(unique(as.Date(startdatetime))),
+  group_by(cd_rvr, nm_rvr, nm_rch, cd_rch) %>% 
+  summarise(across(.cols = c(matches("_rmi_"), date, discharge, temp), samp_stats),
+            effort_hr = round(sum(amt_effort_sec, na.rm = TRUE)/3600, 1),
+            sampl_days = length(unique(as.Date(tm_end))),
             .groups = "drop") %>% 
   mutate_if(is.Date, ~ format(.x, "%d %B %Y")) %>% 
   mutate_if(is.numeric, ~ format(.x, big.mark = ",")) %>% 
-  mutate(temp_rng = paste(rvr_temp_min, rvr_temp_max, sep = " - "),
+  mutate(temp_rng = paste(temp_min, temp_max, sep = " - "),
          dis_rng = paste(discharge_min, discharge_max, sep = " - "),
          .keep = "unused") %>% 
   arrange(dmy(.$date_min))
 
 s_summary_rch <- s_summary %>% 
-  split(.$rch_code)
+  split(.$cd_rch)
 
 ```
 
@@ -161,8 +161,8 @@ water_stats <- list(
   n = ~ n())
 
 
-w_summary <- dat$usgswater %>%
-  group_by(rvr_code) %>% 
+w_summary <- dat$water %>%
+  group_by(cd_rvr) %>% 
   summarise(across(.cols = c(discharge), .fns = water_stats),
             dt_max_flow = format(date[which.max(discharge)], "%d %B %Y"),
             dt_min_flow = format(date[which.min(discharge)], "%d %B %Y"),
@@ -170,16 +170,16 @@ w_summary <- dat$usgswater %>%
   mutate_if(is.numeric, ~ format(.x, big.mark = ",")) 
 
 w_summary_rvr <- w_summary %>% 
-  split(.$rvr_code)
+  split(.$cd_rvr)
 
 s_tmp <- site %>% 
-  group_by(rvr_code, rch_code, rch_name, date = as.Date(startdatetime)) %>% 
-  summarise(el_sec = sum(el_sec, na.rm = TRUE),
+  group_by(cd_rvr, cd_rch, nm_rch, date) %>% 
+  summarise(amt_effort_sec = sum(amt_effort_sec, na.rm = TRUE),
             .groups = "drop") 
 
-water <- dat$usgswater %>% 
-  left_join(s_tmp, by = c("date", "rvr_code")) %>% 
-  left_join(tbl_rvr, by = c("rvr_code" = "cd_rvr")) %>% 
+water <- dat$water %>% 
+  left_join(s_tmp, by = c("date", "cd_rvr")) %>% 
+  left_join(tbl_rvr, by = "cd_rvr") %>% 
   filter(date < as.Date("2020-10-01"))
 ```
 
@@ -187,35 +187,36 @@ water <- dat$usgswater %>%
 
 ```{r cpue-data}
 # Create simple CPUE df
-cpue <- dat$cpue %>%
-  mutate(wk = week(startdatetime),
-         mo = month(startdatetime)) %>%
-  inner_join(select(tbl_spp, -nativity), by = c("spp_code" = "cd_spp")) %>% # join common and sci names for display
-  inner_join(rch, by = c("rch_code" = "cd_rch", "rvr_code" = "cd_rvr")) %>% 
-  inner_join(select(site, site_id, rvr_temp)) %>% 
-  mutate(rch_code = ifelse(rch_code %in% c("WW", "LCO"), "LWW", rch_code),
-         rch_name = case_when(rch_code == "LWW" ~ "Lower Westwater",
-                              rch_code == "DESO" ~ "Lower Gray Canyon",
-                              rch_code == "LGR" ~ "Tusher"))
+cpue <- site %>%
+  left_join(dat$count, by = "id_site") %>% 
+  mutate(wk = week(tm_end),
+         mo = month(tm_end)) 
+  # inner_join(select(tbl_spp, -nativity), by = c("cd_spp" = "cd_spp")) %>% # join common and sci names for display
+  # inner_join(rch, by = c("cd_rch" = "cd_rch", "cd_rvr" = "cd_rvr")) %>% 
+  # inner_join(select(site, site_id, rvr_temp)) %>% 
+  # mutate(cd_rch = ifelse(cd_rch %in% c("WW", "LCO"), "LWW", cd_rch),
+  #        rch_name = case_when(cd_rch == "LWW" ~ "Lower Westwater",
+  #                             cd_rch == "DESO" ~ "Lower Gray Canyon",
+  #                             cd_rch == "LGR" ~ "Tusher"))
 
 # Aggregate CPUE to date 
 cpue_dt <- cpue %>% 
-  group_by(rvr_code, rch_code, spp_code, date = as.Date(startdatetime)) %>% 
-  summarise(tot_effort = sum(el_sec, na.rm = TRUE) / 3600,
-            n_fish = sum(fish_ct, na.rm = TRUE),
+  group_by(cd_rvr, cd_rch, cd_spp, date = as.Date(tm_end), discharge, temp) %>% 
+  summarise(tot_effort = sum(amt_effort_sec, na.rm = TRUE) / 3600,
+            n_fish = sum(n_fish, na.rm = TRUE),
             .groups = "drop") %>% 
   mutate(cpue_dt = n_fish/tot_effort)
 
-water2 <- dat$usgswater %>% 
-  left_join(cpue_dt, by = c("date", "rvr_code")) %>% 
-  left_join(tbl_rvr, by = c("rvr_code" = "cd_rvr"))  %>% 
-  filter(date < as.Date("2020-10-01"))
+# water2 <- dat$usgswater %>% 
+#   left_join(cpue_dt, by = c("date", "cd_rvr")) %>% 
+#   left_join(tbl_rvr, by = c("cd_rvr" = "cd_rvr"))  %>% 
+#   filter(date < as.Date("2020-10-01"))
 
 
 # Aggregate to river for the Colorado River
 # cpue_rvr_co <- cpue %>%
-#   filter(rvr_code == "CO") %>% 
-#   group_by(rvr_name, com_name, spp_code) %>% 
+#   filter(cd_rvr == "CO") %>% 
+#   group_by(rvr_name, com_name, cd_spp) %>% 
 #   summarise(fish_ct = sum(fish_ct),
 #             tot_effort = round(sum(el_sec)/3600,2),
 #            .groups = "drop") %>% 
@@ -225,28 +226,28 @@ water2 <- dat$usgswater %>%
 
 # Calculate cpue by week and split reach
 # cpue_week <- cpue %>% 
-#   mutate(wk = week(startdatetime)) %>% 
-#   group_by(rch_code, rch_name, wk, com_name, spp_code) %>% 
+#   mutate(wk = week(tm_end)) %>% 
+#   group_by(cd_rch, rch_name, wk, com_name, cd_spp) %>% 
 #   summarise(fish_ct = sum(fish_ct),
 #             tot_effort = round(sum(el_sec)/3600,2),
 #             m_temp = mean(rvr_temp, na.rm = TRUE),
 #            .groups = "drop") %>% 
 #   mutate(cpue = round(fish_ct/tot_effort, 2)) %>% 
 #   filter(fish_ct > 0) %>% 
-#   split(.$rch_code)
+#   split(.$cd_rch)
 
 ```
 
 ```{r}
 # Aggregate to reach and calculate total cpue and split reach Green River
 cpue_rch <- cpue %>% 
-  group_by(rch_code, rch_name, nm_com, spp_code) %>% 
-  summarise(fish_ct = sum(fish_ct),
-            tot_effort = round(sum(el_sec)/3600,2),
+  group_by(cd_rch, nm_rch, cn_spp, cd_spp) %>% 
+  summarise(fish_ct = sum(n_fish),
+            tot_effort = round(sum(amt_effort_sec)/3600,2),
            .groups = "drop") %>% 
   mutate(cpue = round(fish_ct/tot_effort, 2)) %>% 
   filter(fish_ct > 0) %>% 
-  split(.$rch_code)
+  split(.$cd_rch)
 
 
 ```
@@ -255,25 +256,25 @@ cpue_rch <- cpue %>%
 
 ```{r biomet-data}
 
-fish_bio <- left_join(dat$fish, reach_tmp, by = c("site_id")) %>%
-  split(.$rch_code)
+fish_bio <- left_join(dat$fish, reach_tmp, by = c("id_site")) %>%
+  split(.$cd_rch)
 
 ```
 
 ```{r lf-figures}
 fig_lf <- function(.data = fish_bio, .x, .fig_num, binwidth = 25) { 
   .data %>% 
-    filter(spp_code == .x) %>% 
+    filter(cd_spp == .x) %>% 
     ggplot() +
     geom_histogram(aes(x = tot_length),
                    binwidth = binwidth,
                    color = "black") +
     labs(title = paste0("Figure ", .fig_num, ". Length frequency histogram for ", 
-                       unique(.data$com_name[.data$spp_code == .x]), 
+                       unique(.data$cn_spp[.data$cd_spp == .x]), 
                        "\n encountered within the ", 
-                       unique(.data$rch_name),
+                       unique(.data$nm_rch),
                        " Reach, ",
-                       unique(year(.data$datetime))),
+                       unique(year(.data$tm_encounter))),
          x = "Total length (mm)",
          y = "Number of fish")
 }
@@ -295,13 +296,13 @@ fig_lf <- function(.data = fish_bio, .x, .fig_num, binwidth = 25) {
 
   
 hydro <- function(.data, .river_code, .fig_num) {
-  .river_name <- unique(na.omit(.data$nm_rvr[.data$rvr_code == .river_code]))
+  .river_name <- unique(na.omit(.data$nm_rvr[.data$cd_rvr == .river_code]))
   .data2 <- .data %>% 
-    filter(rvr_code == .river_code)
+    filter(cd_rvr == .river_code)
   
   ggplot(.data2) +
     geom_line(aes(x = date, y = discharge), lwd = 1) +
-    geom_point(data = filter(.data2, !is.na(rch_code)),
+    geom_point(data = filter(.data2, !is.na(cd_rch)),
                aes(x = date, y = discharge), 
                pch = 21,
                cex = 4,
@@ -325,7 +326,7 @@ hydro <- function(.data, .river_code, .fig_num) {
 
 ### Abstract
 
-Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$startdatetime))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$spp_code == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$spp_code == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
+Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$tm_end))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$cd_spp == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$cd_spp == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
 
 ```{r summary-gt, eval=FALSE}
 # s_summary %>%
@@ -428,15 +429,15 @@ The Green River peaked at `r w_summary_rvr$GR$discharge_max` cfs on `r w_summary
 
 ```{r gr-dis-cap}
 ck <- water %>% 
-  filter(rvr_code == "GR") %>% 
+  filter(cd_rvr == "GR") %>% 
   distinct(date, .keep_all = TRUE)
 h_gr <- hydro(ck, .river_code = "GR", .fig_num = 2)
 cap1 <- paste(capture.output(BrailleR::VI(h_gr)), collapse = " ")
 extra_text <- "This figure is depicts the dates on which sampling occurred (points) and the river discharge (line) during the sampling period. The sampling dates and river discharge follow -"
-cap_dat <- filter(water, rvr_code == "GR" & !is.na(rch_code)) %>% 
+cap_dat <- filter(water, cd_rvr == "GR") %>% 
   distinct(date, .keep_all = TRUE)
-dt_sample <- format(cap_dat$date[cap_dat$rvr_code == "GR" & !is.na(cap_dat$rch_code)], "%B %d")
-dis_sample <- paste(cap_dat$discharge[cap_dat$rvr_code == "GR" & !is.na(cap_dat$rch_code)], "cfs")
+dt_sample <- format(cap_dat$date[cap_dat$cd_rvr == "GR" & !is.na(cap_dat$cd_rch)], "%B %d")
+dis_sample <- paste(cap_dat$discharge[cap_dat$cd_rvr == "GR" & !is.na(cap_dat$cd_rch)], "cfs")
 
 dt_dis <- paste0(dt_sample, ": ", dis_sample)
 fnl_dt_dis <- paste(dt_dis, collapse = ", ")
@@ -454,7 +455,7 @@ h_gr
 </center>
 
 
-A total of `r s_summary_rch$LGR$effort_hr` hours of effort were allocated to this reach and  `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$nm_com == "walleye"]` walleye were removed (catch-per-unit-effort [cpue] = `r cpue_rch$LGR$cpue[cpue_rch$LGR$nm_com == "walleye"]` fish-per-hour).  Walleye catch rates are similar to recent years (Table 4), but with increased effort substantially more walleye have been removed in 2019 and 2020 than previous years. Walleye total lengths within this reach were also similar to recent years (mean = `r round(mean(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"], na.rm = TRUE))` mm, range = `r min(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"], na.rm = TRUE)` - `r max(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"], na.rm = TRUE)` mm) (Figure 3). Additionally, researchers removed `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$nm_com == "smallmouth bass"]` smallmouth bass (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$nm_com == "smallmouth bass"]` fish-per-hour) and `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$nm_com == "northern pike"]` northern pike (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$nm_com == "northern pike"]` fish-per-hour) (Table 2). Native fish encounters are summarized in Table 3. 
+A total of `r s_summary_rch$LGR$effort_hr` hours of effort were allocated to this reach and  `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "walleye"]` walleye were removed (catch-per-unit-effort [cpue] = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "walleye"]` fish-per-hour).  Walleye catch rates are similar to recent years (Table 4), but with increased effort substantially more walleye have been removed in 2019 and 2020 than previous years. Walleye total lengths within this reach were also similar to recent years (mean = `r round(mean(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE))` mm, range = `r min(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE)` - `r max(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE)` mm) (Figure 3). Additionally, researchers removed `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "smallmouth bass"]` smallmouth bass (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "smallmouth bass"]` fish-per-hour) and `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "northern pike"]` northern pike (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "northern pike"]` fish-per-hour) (Table 2). Native fish encounters are summarized in Table 3. 
   
 <br><br>
 
@@ -462,17 +463,17 @@ A total of `r s_summary_rch$LGR$effort_hr` hours of effort were allocated to thi
 ```{r nnf-cpue-GR-gt}
 
 cpue_rch$LGR %>% 
-  filter(spp_code %!in% spp_nat) %>%
+  filter(cd_spp %!in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
-  select(-c(rch_code)) %>% 
+  select(-c(cd_rch)) %>% 
   
-  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
   set_table_properties(width = .5, layout = "autofit") %>% 
   theme_vanilla() %>% 
   align(align = "center", part = "all") %>% 
 
   set_header_labels(
-    nm_com = "Common Name",
+    cn_spp = "Common Name",
     fish_ct = "Number of Fish Encountered",
     cpue = "Fish-per-Hour"
   ) %>% 
@@ -495,18 +496,18 @@ cpue_rch$LGR %>%
 
 ```{r nat-cpue-GR}
 cpue_rch$LGR %>% 
-  filter(spp_code %in% spp_nat) %>%
+  filter(cd_spp %in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
-  select(-c(rch_code)) %>% 
+  select(-c(cd_rch)) %>% 
 
-  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
   set_table_properties(width = .5, layout = "autofit") %>% 
 
   theme_vanilla() %>% 
   align(align = "center", part = "all") %>% 
 
   set_header_labels(
-    nm_com = "Common Name",
+    cn_spp = "Common Name",
     fish_ct = "Number of Fish Encountered",
     cpue = "Fish-per-Hour"
   ) %>% 
@@ -526,7 +527,7 @@ cpue_rch$LGR %>%
 
 
 ```{r}
-tibble(yr = c(2020, 2019, 2018, 2017),
+tibble(yr = c("2020", "2019", "2018", "2017"),
        n_we = c(113, 151, 12, 32),
        tot_effort = c(39.7, 43.4, 7.2, 25),
        cpue = c(2.85, 3.48, 1.66, 1.28)) %>% 
@@ -559,7 +560,7 @@ lf_gr <- fig_lf(.data = fish_bio$LGR, .x = "WE", .fig_num = 3)
 cap3 <- paste(capture.output(BrailleR::VI(lf_gr)), collapse = " ")
 
 #generate alt data
-sum_lf <- summary(fish_bio$LGR$tot_length[fish_bio$LGR$spp_code == "WE"])
+sum_lf <- summary(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"])
 nm_sum_lf <- names(sum_lf)
 vec_lf <- as.vector(round(sum_lf))
 dat_lf <- paste(nm_sum_lf, " = ", vec_lf, collapse = ", ")
@@ -587,17 +588,17 @@ Utah Division of Wildlife Resources completed an experimental two day removal pa
 
 ```{r}
 cpue_rch$DESO %>% 
-  filter(spp_code %!in% spp_nat) %>%
+  filter(cd_spp %!in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
-  select(-c(rch_code)) %>% 
+  select(-c(cd_rch)) %>% 
   
-  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
   set_table_properties(width = .6, layout = "autofit") %>% 
   theme_vanilla() %>% 
   align(align = "center", part = "all") %>% 
 
   set_header_labels(
-    nm_com = "Common Name",
+    cn_spp = "Common Name",
     fish_ct = "Number of Fish Encountered",
     cpue = "Fish-per-Hour"
   ) %>% 
@@ -618,18 +619,18 @@ cpue_rch$DESO %>%
 
 ```{r}
 cpue_rch$DESO %>% 
-  filter(spp_code %in% spp_nat) %>%
+  filter(cd_spp %in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
-  select(-c(rch_code)) %>% 
+  select(-c(cd_rch)) %>% 
 
-  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
   set_table_properties(width = .6, layout = "autofit") %>% 
 
   theme_vanilla() %>% 
   align(align = "center", part = "all") %>% 
 
   set_header_labels(
-    nm_com = "Common Name",
+    cn_spp = "Common Name",
     fish_ct = "Number of Fish Encountered",
     cpue = "Fish-per-Hour"
   ) %>% 
@@ -681,10 +682,10 @@ cap3 <- paste(capture.output(BrailleR::VI(h_co)), collapse = " ")
 
 # Modify caption to include data and richer text
 extra_text <- "This figure is depicts the dates on which sampling occurred (points) and the river discharge (line) during the sampling period."
-# cap_dat <- filter(water, rvr_code == "CO" & !is.na(rch_code)) %>% 
+# cap_dat <- filter(water, cd_rvr == "CO" & !is.na(cd_rch)) %>% 
 #   distinct(date, .keep_all = TRUE)
-# dt_sample <- format(cap_dat$date[cap_dat$rvr_code == "CO" & !is.na(cap_dat$rch_code)], "%B %d")
-# dis_sample <- paste(cap_dat$discharge[cap_dat$rvr_code == "CO" & !is.na(cap_dat$rch_code)], "cfs")
+# dt_sample <- format(cap_dat$date[cap_dat$cd_rvr == "CO" & !is.na(cap_dat$cd_rch)], "%B %d")
+# dis_sample <- paste(cap_dat$discharge[cap_dat$cd_rvr == "CO" & !is.na(cap_dat$cd_rch)], "cfs")
 # 
 # dt_dis <- paste0(dt_sample, ": ", dis_sample)
 # fnl_dt_dis <- paste(dt_dis, collapse = ", ")
@@ -699,25 +700,25 @@ h_co
 
 </center>
 
-A total of `r s_summary_rch$LWW$effort_hr` hours of effort was allocated to this reach and crews removed a total of `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$nm_com == "walleye"]` walleye (catch-per-unit-effort [cpue] = `r cpue_rch$LWW$cpue[cpue_rch$LWW$nm_com == "walleye"]` fish-per-hour).  Additionally, `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$nm_com == "smallmouth bass"]` smallmouth bass were removed (cpue = `r cpue_rch$LWW$cpue[cpue_rch$LWW$nm_com == "smallmouth bass"]`) within this reach (Table 7, Figure 5). This catch-rate is substantially higher than recent years (Table 9). This is particularly concerning due to the close proximity of the Westwater Canyon humpback chub population. Smallmouth bass mean total length in 2020 was `r round(mean(fish_bio$LWW$tot_length[fish_bio$LWW$spp_code == "SM"], na.rm = TRUE))` mm (range = `r min(fish_bio$LWW$tot_length[fish_bio$LWW$spp_code == "SM"], na.rm = TRUE)` - `r max(fish_bio$LWW$tot_length[fish_bio$LWW$spp_code == "SM"], na.rm = TRUE)` mm) (Figure 6). Ancillary captures of native species are noted in Table 8. 
+A total of `r s_summary_rch$LWW$effort_hr` hours of effort was allocated to this reach and crews removed a total of `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$cn_spp == "walleye"]` walleye (catch-per-unit-effort [cpue] = `r cpue_rch$LWW$cpue[cpue_rch$LWW$cn_spp == "walleye"]` fish-per-hour).  Additionally, `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$cn_spp == "smallmouth bass"]` smallmouth bass were removed (cpue = `r cpue_rch$LWW$cpue[cpue_rch$LWW$cn_spp == "smallmouth bass"]`) within this reach (Table 7, Figure 5). This catch-rate is substantially higher than recent years (Table 9). This is particularly concerning due to the close proximity of the Westwater Canyon humpback chub population. Smallmouth bass mean total length in 2020 was `r round(mean(fish_bio$LWW$tot_length[fish_bio$LWW$cd_spp == "SM"], na.rm = TRUE))` mm (range = `r min(fish_bio$LWW$tot_length[fish_bio$LWW$cd_spp == "SM"], na.rm = TRUE)` - `r max(fish_bio$LWW$tot_length[fish_bio$LWW$cd_spp == "SM"], na.rm = TRUE)` mm) (Figure 6). Ancillary captures of native species are noted in Table 8. 
 
 
 <br><br>
 
 
 ```{r nnf-cpue-CO}
-cpue_rch$LWW %>% 
-  filter(spp_code %!in% spp_nat) %>%
+cpue_rch$LCO %>% 
+  filter(cd_spp %!in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
-  select(-c(rch_code)) %>% 
+  select(-c(cd_rch)) %>% 
   
-  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
   set_table_properties(width = .6, layout = "autofit") %>% 
   theme_vanilla() %>% 
   align(align = "center", part = "all") %>% 
 
   set_header_labels(
-    nm_com = "Common Name",
+    cn_spp = "Common Name",
     fish_ct = "Number of Fish Encountered",
     cpue = "Fish-per-Hour"
   ) %>% 
@@ -736,20 +737,20 @@ cpue_rch$LWW %>%
 <br><br>
 
 ```{r nat-cpue-CO}
-cpue_rch$LWW$nm_com[cpue_rch$LWW$spp_code == "CH"] <- "native Gila not identified to species"
-cpue_rch$LWW %>% 
-  filter(spp_code %in% spp_nat) %>%
+cpue_rch$LCO$cn_spp[cpue_rch$LWW$cd_spp == "CH"] <- "native Gila not identified to species"
+cpue_rch$LCO %>% 
+  filter(cd_spp %in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
-  select(-c(rch_code)) %>% 
+  select(-c(cd_rch)) %>% 
 
-  flextable(col_keys = c("nm_com", "fish_ct", "cpue")) %>% 
+  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
   set_table_properties(width = .6, layout = "autofit") %>% 
 
   theme_vanilla() %>% 
   align(align = "center", part = "all") %>% 
 
   set_header_labels(
-    nm_com = "Common Name",
+    cn_spp = "Common Name",
     fish_ct = "Number of Fish Encountered",
     cpue = "Fish-per-Hour"
   ) %>% 
@@ -768,7 +769,7 @@ cpue_rch$LWW %>%
 <br><br>
 
 ```{r}
-tibble(yr = c(2020, 2019, 2018, 2017),
+tibble(yr = c("2020", "2019", "2018", "2017"),
        n_sm = c(369, 12, 5, 35),
        tot_effort = c(19.7, 6.6, 2, 7),
        cpue = c(18.69, 1.81, 2.45, 4.96)) %>% 
@@ -797,8 +798,8 @@ tibble(yr = c(2020, 2019, 2018, 2017),
 
 ```{r cpue-ls-cap}
 cpue_ls <- dat$cpue_ls %>% 
-  filter(rvr_code == "CO" &
-           spp_code == "SM") %>% 
+  filter(cd_rvr == "CO" &
+           cd_spp == "SM") %>% 
     mutate(ls_fct = as_factor(life_stage), 
          ls_fct = fct_recode(ls_fct, 
                              Juvenile = "JUV",
@@ -838,7 +839,7 @@ lf_co <- fish_bio$LWW %>%
 cap5 <- paste(capture.output(BrailleR::VI(lf_co)), collapse = " ")
 
 #generate alt data
-sum_lf <- summary(fish_bio$LWW$tot_length[fish_bio$LGR$spp_code == "SM"])
+sum_lf <- summary(fish_bio$LWW$tot_length[fish_bio$LGR$cd_spp == "SM"])
 nm_sum_lf <- names(sum_lf)
 vec_lf <- as.vector(round(sum_lf))
 dat_lf <- paste(nm_sum_lf, " = ", vec_lf, collapse = ", ")
@@ -887,7 +888,7 @@ III.	Principal Investigator(s): <br><br>
 
 
 IV.	Abstract: <br><br>
-Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$startdatetime))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$spp_code == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$spp_code == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
+Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$tm_end))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$cd_spp == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$cd_spp == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
 
 
 V.	Study Schedule: <br><br>

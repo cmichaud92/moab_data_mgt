@@ -18,6 +18,18 @@
 		"type": "STRING"
 	},
 	{
+		"description": "UDWR scientific name code",
+		"mode": "NULLABLE",
+		"name": "ScientificNameCode",
+		"type": "STRING"
+	},
+	{
+		"description": "UDWR fish species strain code",
+		"mode": "NULLABLE",
+		"name": "FishSpeciesStrainCode",
+		"type": "STRING"
+	},
+	{
 		"description": "Taxonomic family affiliation",
 		"mode": "NULLABLE",
 		"name": "Family",
