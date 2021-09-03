@@ -180,9 +180,8 @@ if ("fish" %in% names(data)) {
     arrange(datetime) %>%
     mutate(f_index = row_number()) %>%
     group_by(site_id, rmi) %>%
-    mutate(across(c(ilat, ilon), first))
-    # mutate_at(vars(ends_with("rmi")), function(x) {ifelse(.$reach %in% c("DESO", "ECHO"),
-    #                                                       x + 120, x)}) %>%
+    mutate(across(c(ilat, ilon), first)) %>%
+    ungroup() %>%
     select(f_index,
            key_aa,
            s_index,
@@ -197,8 +196,8 @@ if ("fish" %in% names(data)) {
 
   fish_sf <- fish_1 %>%                                     # Convert long-lat to UTMs
     group_by(site_id, rmi) %>%
-    summarise(ilon = first(ilon, na.rm = TRUE),
-              ilat = first(ilat, na.rm = TRUE),
+    summarise(ilon = mean(ilon, na.rm = TRUE),
+              ilat = mean(ilat, na.rm = TRUE),
               .groups = "drop") %>%
     filter(!is.na(ilon)) %>%
     st_as_sf(coords = c("ilon", "ilat"), crs = 4326) %>%
@@ -223,12 +222,12 @@ if ("pittag" %in% names(data)) {
     mutate_all(na_if, "Z")
 
   pittag <- left_join(pit_tmp, samp_n, by = "key_a") %>%
-    left_join(select(fish, key_aa, datetime, species), by = c("key_aa")) %>%
+    left_join(select(fish, key_aa, datetime), by = c("key_aa")) %>%
     arrange(datetime) %>%
     mutate(p_index = row_number(),
            pit_num = toupper(pit_num)) %>%
     select(p_index, s_index, key_aaa, key_aa, site_id,
-           species,pit_type, pit_num, pit_recap,
+           pit_type, pit_num, pit_recap,
            pit_notes, key_a)
 
 } else {
@@ -284,7 +283,7 @@ if ("vial" %in% names(data)) {
   site$start_rmi[site$s_index == 67] <- 114.8
   site$end_rmi[site$s_index == 40] <- 115.0
   site$end_rmi[site$s_index == 74] <- 114.5
-
+  site$boat[site$boat == "Sparky"] <- "SPARKY"
   site <- site %>%
     mutate(startdatetime = if_else(enddatetime - startdatetime < el_sec, enddatetime - ((.1 * el_sec) + el_sec), startdatetime))
 
@@ -306,27 +305,25 @@ if ("vial" %in% names(data)) {
     datetime = ymd_hms("2021-05-18 12:06:22"),
     species = "UI",
     disp = "DE",
-    loc_x =
+#    loc_x =
     fish_notes = "Recovered from walleye's stomach"
   )
   fish <- bind_rows(fish, fish_adds)
+
+  fish$species[fish$f_index == 236] <- "BT"
+  fish$fish_notes[fish$f_index == 236] <- "Originally recorded as 'BN' very likely a 'BT' :)"
+  fish$rmi[fish$s_index == 49] <- 95.5
+  fish$rmi[fish$f_index == 960] <- 116.3
+
   # Pittag
   data_cks(pittag)
   pittag <- pittag %>%
     mutate(pit_type = "134",
            across(pit_num, ~ifelse(grepl('[0-9A-Z]{3}[.]{1}', .x), .x, gsub('^([0-9A-Z]{3})([0-9A-Z]+)$', '\\1.\\2', .x))))
 #  pittag$pit_recap[pittag$p_index == 9] <- "NNF"
-  pittag$pit_notes[pittag$species == "BN"] <- "Originally recorded as 'BN' very likely a 'BT' :)"
-  pittag$species[pittag$species == "BN"] <- "BT"
-  ck <- fish %>%
-    filter(f_index == 219)
+  pittag$pit_notes[pittag$p_index == 10] <- "Originally recorded as 'BN' very likely a 'BT' :)"
   pittag$key_aa[pittag$pit_num == "3DD.003BF2ECC0"] <- "recovered_from_prey_01"
   pittag$pit_notes[pittag$pit_num == "3DD.003BF2ECC0"] <- "Tag recovered from UI carcus inside walleye stomach"
-  ck <- pittag %>%
-    select(-c(s_index, site_id, species, key_a)) %>%
-    inner_join(fish)
-  ck <- pittag %>% filter(pit_num == "3DD.003BF2ECC0")
-  ck1 <- ck %>% inner_join(fish)
   # Vial
 
   vial$vial_num[vial$f_index == 34] <- "4192101"
@@ -442,6 +439,7 @@ nst_pittag <- pittag %>%
 
 
 # Fish Data
+data_cks(fish)
 nst_fish <- fish %>%
   mutate(FishCount = 1,
          IsRipe = case_when(grepl("^EXP", rep_cond) ~ TRUE,
@@ -470,12 +468,12 @@ nst_fish <- fish %>%
          EPSGCode = epsg,
          Notes = fish_notes) %>%
   left_join(nst_pittag, by = "key_aa") %>%
-#  left_join(nst_floytag, by = "SiteID") %>%
-  nest(FishData = c(EncounterDateTime_UTC:PitTag)) %>%
-  select(-key_aa)
+  select(-key_aa) %>%
+  nest(FishData = c(EncounterDateTime_UTC:PitTag))
 
 
 # Final nested site data
+data_cks(site)
 fnl_site <- site %>%
   select(SiteID = site_id,
          StudyCode = project,
@@ -498,8 +496,8 @@ fnl_site <- site %>%
 
 # Write data to Big Query
 
-if (exists("site")) {
-  message("place code here")
+if (exists("fnl_site")) {
+  write_safe(df = fnl_site)
 }
 
 
