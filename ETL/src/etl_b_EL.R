@@ -33,9 +33,9 @@ YEAR <- year(now())
 # ----- Specify the configuration environment -----
 
 # default = authenticates to PI's account
-# CONFIG <- "macos"
+ CONFIG <- "macos"
 # CONFIG = "management"
-CONFIG = "development"
+# CONFIG = "development"
 
 
 
@@ -155,6 +155,7 @@ if (nrow(qc_sheet) == 0) {
 
   # Final nested site data
   site <- fnl_dat$site %>%
+    mutate(across(pass, as.character)) %>%
     select(SiteID = site_id,
            StudyCode = project,
            RiverCode = river,
@@ -177,6 +178,6 @@ if (nrow(qc_sheet) == 0) {
 # Write data to Big Query
 
 if (exists("site")) {
-  message("place code here")
+  write_safe(df = site)
 }
 
