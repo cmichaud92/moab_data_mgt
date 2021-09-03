@@ -1,0 +1,44 @@
+[
+  {
+    "description": "MFO lifestage classification code, combine with LifeStageAbbr for natural primary key",
+    "mode": "REQUIRED",
+    "name": "LifeStageCode",
+    "type": "STRING"
+  },
+  {
+    "description": "MFO lifestage abbreviation, combine with LifeStageCode for natural primary key",
+    "mode": "REQUIRED",
+    "name": "LifeStageAbbr",
+    "type": "STRING"
+  },
+  {
+    "description": "Minimum total length for lifestage measured in mm",
+    "mode": "REQUIRED",
+    "name": "MinTotalLength_mm",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Maximum total length for lifestage measured in mm",
+    "mode": "REQUIRED",
+    "name": "MaxTotalLength_mm",
+    "type": "INTEGER"
+  },
+  {
+    "description": "Lifestage name",
+    "mode": "REQUIRED",
+    "name": "LifeStageName",
+    "type": "STRING"
+  },
+  {
+    "description": "Lifestage description",
+    "mode": "NULLABLE",
+    "name": "LifeStageDescription",
+    "type": "STRING"
+  },
+  {
+    "description": "Species codes associated with this lifestage classification",
+    "mode": "NULLABLE",
+    "name": "AssociatedSpeciesCodes",
+    "type": "STRING"
+  }
+]
