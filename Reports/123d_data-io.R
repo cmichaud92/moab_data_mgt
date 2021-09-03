@@ -37,8 +37,8 @@
 STUDY <- "123d"
 
 # Data year (should be current year)
-#YEAR <- year(now())
-YEAR <- 2020
+YEAR <- year(now())
+#YEAR <- 2020
 
 # ----- Specify the configuration environment -----
 
@@ -91,7 +91,7 @@ tmp_site <- tbl(bq_view, "electrofish_sitedata") %>%
          amt_effort_sec = Effort_Seconds) %>%
   collect()
 
-write_csv(tmp_site, "./Reports/Rept-data/test_123d_2020_ar-site.csv")
+write_csv(tmp_site, paste("./Reports/Rept-data/", config$study, YEAR, "ar-site.csv", sep = "_"))
 
 # fish biometric data
 tmp_fish <- tbl(bq_view, "electrofish_fishdata") %>%
@@ -113,7 +113,7 @@ tmp_fish <- tbl(bq_view, "electrofish_fishdata") %>%
          loc_y = Northing_UTM) %>%
   collect()
 
-write_csv(tmp_fish, "./Reports/Rept-data/test_123d_2020_ar-fish.csv")
+write_csv(tmp_fish, paste("./Reports/Rept-data/", config$study, YEAR, "ar-fish.csv", sep = "_"))
 
 # Fish count data (aggregated to SiteID)
 s_ids <- tmp_site %>%
@@ -128,7 +128,7 @@ tmp_count <-  tbl(bq_view, "electrofish_fishcount") %>%
          n_fish = FishCount) %>%
   collect()
 
-write_csv(tmp_count, paste("./Reports/Rept-data/test", config$study, YEAR, "ar-count.csv", sep = "_"))
+write_csv(tmp_count, paste("./Reports/Rept-data/", config$study, YEAR, "ar-count.csv", sep = "_"))
 # ----- WaterData -----
 
 # Green River
@@ -183,4 +183,4 @@ co <- importDVs(staid = "09180500",
 
 waterdata <- bind_rows(co, gr)
 
-write_csv(waterdata, paste("./Reports/Rept-data/test", config$study, YEAR, "ar-water.csv", sep = "_"))
+write_csv(waterdata, paste("./Reports/Rept-data/", config$study, YEAR, "ar-water.csv", sep = "_"))
