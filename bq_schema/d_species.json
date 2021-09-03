@@ -46,5 +46,11 @@
 		"mode": "NULLABLE",
 		"name": "IsHybrid",
 		"type": "BOOLEAN"
+	},
+	{
+		"description": "Tracks to lifestage dimension table for defined species",
+		"mode": "NULLABLE",
+		"name": "LifeStageCode",
+		"type": "STRING"
 	}
 ]
