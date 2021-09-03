@@ -37,7 +37,7 @@ mapviewOptions(basemaps = c("Esri.WorldImagery", "OpenTopoMap", "CartoDB.Positro
 
 # Fetch final datasets 123d_2020.csv's 
 files <- list.files(path = "./Reports/Rept-data/", 
-                    pattern = "test.*.csv$",
+                    pattern = "*.csv$",
                     full.names = TRUE)
 
 dat <- map(files, read_csv)
@@ -180,7 +180,8 @@ s_tmp <- site %>%
 water <- dat$water %>% 
   left_join(s_tmp, by = c("date", "cd_rvr")) %>% 
   left_join(tbl_rvr, by = "cd_rvr") %>% 
-  filter(date < as.Date("2020-10-01"))
+  filter(date < as.Date(paste0(year(now()), "-10-01")))
+
 ```
 
 
@@ -367,7 +368,7 @@ s_summary %>%
   ) %>% 
 
   bg(bg = "#D3D3D3", part = "header") %>% 
-  add_header_lines(values = "Table 1. Effort summary by reach in 2020", top = TRUE) %>% 
+  add_header_lines(values = paste("Table 1. Effort summary by reach in", yr), top = TRUE) %>% 
   bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
   align(j = 1, align = "left", part = "all")
@@ -382,9 +383,9 @@ ___
 ```{r study-area}
 
 # ----- Map it -----
-mapview(grey, color = "green3", 
-        lwd = 5,
-        layer.name = "Lower Gray Canyon") +
+# mapview(grey, color = "green3", 
+#         lwd = 5,
+#         layer.name = "Lower Gray Canyon") +
   mapview(tusher, color = "blue", 
           lwd = 5, 
           layer.name = "Tusher") +
@@ -409,7 +410,7 @@ ___
 
 <center>
 ```{r fig.cap="A photograph showing the Tusher diversion. It appears as a low head concrete dam with river water cascading over it. Concrete flow regulation gates are visible on the far side of the structure and a sunset over the desert landscape is in the background"}
-knitr::include_graphics(path = "c:/Users/cmichaud/proj_mgt/proj/proj_123d/123d_2020/asset/tusher_crop.jpg",
+knitr::include_graphics(path = "/Users/christophermichaud/Documents/Projects/udwr-mfo_data-mgt/Reports/Assets/walleye-carlos.jpg",
                         dpi = 75)
 ```
 </center>  
@@ -482,7 +483,7 @@ cpue_rch$LGR %>%
                                   unique(cpue_rch$LGR$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>%
-  add_header_lines(values = "Table 2. Nonnative fish encounters within the\n Tusher Reach, 2020", 
+  add_header_lines(values = paste("Table 2. Nonnative fish encounters within\n the Tusher Reach,", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -516,7 +517,7 @@ cpue_rch$LGR %>%
                                   unique(cpue_rch$LGR$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>% 
-  add_header_lines(values = "Table 3. Native fish encounters within the\n Tusher Reach, 2020", 
+  add_header_lines(values = paste("Table 3. Native fish encounters within the\n Tusher Reach,", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -527,10 +528,10 @@ cpue_rch$LGR %>%
 
 
 ```{r}
-tibble(yr = c("2020", "2019", "2018", "2017"),
-       n_we = c(113, 151, 12, 32),
-       tot_effort = c(39.7, 43.4, 7.2, 25),
-       cpue = c(2.85, 3.48, 1.66, 1.28)) %>% 
+tibble(yr = c("2021", "2020", "2019", "2018", "2017"),
+       n_we = c(101, 113, 151, 12, 32),
+       tot_effort = c(31.3, 39.7, 43.4, 7.2, 25),
+       cpue = c(3.22, 2.85, 3.48, 1.66, 1.28)) %>% 
   flextable() %>% 
     set_table_properties(width = .6, layout = "autofit") %>% 
 
@@ -545,7 +546,7 @@ tibble(yr = c("2020", "2019", "2018", "2017"),
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
  
-  add_header_lines(values = "Table 4. Walleye catch-per-unit-effort \nTusher Reach, 2017 - 2020", 
+  add_header_lines(values = paste("Table 4. Walleye catch-per-unit-effort \nTusher Reach, 2017 -", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -586,7 +587,7 @@ Utah Division of Wildlife Resources completed an experimental two day removal pa
 
 <br><br>
 
-```{r}
+```{r eval=FALSE}
 cpue_rch$DESO %>% 
   filter(cd_spp %!in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
@@ -617,7 +618,7 @@ cpue_rch$DESO %>%
 
 <br><br>
 
-```{r}
+```{r eval=FALSE}
 cpue_rch$DESO %>% 
   filter(cd_spp %in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
@@ -656,7 +657,7 @@ cpue_rch$DESO %>%
 
 <center>
 ```{r fig.cap="A photograph showing eight ~300 mm smallmouth bass on a measuring board"}
-knitr::include_graphics(path = "c:/Users/cmichaud/proj_mgt/proj/proj_123d/123d_2020/asset/IMG_1249.JPG",
+knitr::include_graphics(path = "/Users/christophermichaud/Documents/Projects/udwr-mfo_data-mgt/Reports/Assets/smallmouth-nick.jpg",
                         dpi = 200)
 ```
 </center>
@@ -724,10 +725,10 @@ cpue_rch$LCO %>%
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
   add_footer_lines(values = paste("Based on ", 
-                                  unique(cpue_rch$LWW$tot_effort), 
+                                  unique(cpue_rch$LCO$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>%
-  add_header_lines(values = "Table 7. Nonnative fish encounters within the \nLower Westwater Reach, 2020", 
+  add_header_lines(values = paste("Table 7. Nonnative fish encounters within the \nLower Westwater Reach,", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -737,7 +738,7 @@ cpue_rch$LCO %>%
 <br><br>
 
 ```{r nat-cpue-CO}
-cpue_rch$LCO$cn_spp[cpue_rch$LWW$cd_spp == "CH"] <- "native Gila not identified to species"
+cpue_rch$LCO$cn_spp[cpue_rch$LCO$cd_spp == "CH"] <- "native Gila not identified to species"
 cpue_rch$LCO %>% 
   filter(cd_spp %in% spp_nat) %>%
   arrange(desc(cpue)) %>% 
@@ -756,10 +757,10 @@ cpue_rch$LCO %>%
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
   add_footer_lines(values = paste("Based on ", 
-                                  unique(cpue_rch$LWW$tot_effort), 
+                                  unique(cpue_rch$LCO$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>% 
-  add_header_lines(values = "Table 8. Native fish encounters within the \nLower Westwater Reach, 2020", 
+  add_header_lines(values = paste("Table 8. Native fish encounters within the \nLower Westwater Reach,", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -769,10 +770,10 @@ cpue_rch$LCO %>%
 <br><br>
 
 ```{r}
-tibble(yr = c("2020", "2019", "2018", "2017"),
-       n_sm = c(369, 12, 5, 35),
-       tot_effort = c(19.7, 6.6, 2, 7),
-       cpue = c(18.69, 1.81, 2.45, 4.96)) %>% 
+tibble(yr = c("2021", "2020", "2019", "2018", "2017"),
+       n_sm = c(1164, 369, 12, 5, 35),
+       tot_effort = c(43.5, 19.7, 6.6, 2, 7),
+       cpue = c(26.78, 18.69, 1.81, 2.45, 4.96)) %>% 
   flextable() %>% 
     set_table_properties(width = .6, layout = "autofit") %>% 
 
@@ -787,7 +788,7 @@ tibble(yr = c("2020", "2019", "2018", "2017"),
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
  
-  add_header_lines(values = "Table 9. Smallmouth bass catch-per-unit-effort \nLower Westwater Reach, 2017 - 2020", 
+  add_header_lines(values = paste("Table 9. Smallmouth bass catch-per-unit-effort \nLower Westwater Reach, 2017 -", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -796,7 +797,7 @@ tibble(yr = c("2020", "2019", "2018", "2017"),
 
 <br><br>
 
-```{r cpue-ls-cap}
+```{r cpue-ls-cap, eval=FALSE}
 cpue_ls <- dat$cpue_ls %>% 
   filter(cd_rvr == "CO" &
            cd_spp == "SM") %>% 
@@ -818,7 +819,7 @@ cap4 <- paste(capture.output(BrailleR::VI(cpue_ls)), collapse = " ")
 ```
 
 <center>
-```{r cpue-ls-fig, fig.cap=cap4}
+```{r cpue-ls-fig, fig.cap=cap4, eval=FALSE}
 cpue_ls
 
 ```
@@ -827,7 +828,7 @@ cpue_ls
 <br><br>
 
 
-```{r}
+```{r eval=FALSE}
 # Too few encounters for LFH!!!!
 
 lf_co <- fish_bio$LWW %>% 
@@ -851,7 +852,7 @@ fnl_cap5 <- paste(c(cap5, extra_text, dat_lf), collapse = "")
 ```
 
 <center>
-```{r fig.cap=fnl_cap5}
+```{r fig.cap=fnl_cap5, eval=FALSE}
 lf_co
 ```
 

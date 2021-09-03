@@ -91,7 +91,7 @@ tmp_site <- tbl(bq_view, "electrofish_sitedata") %>%
          amt_effort_sec = Effort_Seconds) %>%
   collect()
 
-write_csv(tmp_site, paste("./Reports/Rept-data/", config$study, YEAR, "ar-site.csv", sep = "_"))
+write_csv(tmp_site, paste0("./Reports/Rept-data/", paste(config$study, YEAR, "ar-site.csv", sep = "_")))
 
 # fish biometric data
 tmp_fish <- tbl(bq_view, "electrofish_fishdata") %>%
@@ -113,7 +113,7 @@ tmp_fish <- tbl(bq_view, "electrofish_fishdata") %>%
          loc_y = Northing_UTM) %>%
   collect()
 
-write_csv(tmp_fish, paste("./Reports/Rept-data/", config$study, YEAR, "ar-fish.csv", sep = "_"))
+write_csv(tmp_fish, paste0("./Reports/Rept-data/", paste(config$study, YEAR, "ar-fish.csv", sep = "_")))
 
 # Fish count data (aggregated to SiteID)
 s_ids <- tmp_site %>%
@@ -128,7 +128,9 @@ tmp_count <-  tbl(bq_view, "electrofish_fishcount") %>%
          n_fish = FishCount) %>%
   collect()
 
-write_csv(tmp_count, paste("./Reports/Rept-data/", config$study, YEAR, "ar-count.csv", sep = "_"))
+write_csv(tmp_count, paste0("./Reports/Rept-data/", paste(config$study, YEAR, "ar-count.csv", sep = "_")))
+
+
 # ----- WaterData -----
 
 # Green River
@@ -143,7 +145,7 @@ gr <- importDVs(staid = "09315000",
   full_join(
     importDVs(staid = "09315000",
               code = "00010",
-              stat = "00011",
+              stat = "00003",
               sdate = paste0(YEAR, "-01-01"),
               edate = paste0(YEAR, "-12-31")) %>%
     rename(temp = val,
@@ -183,4 +185,4 @@ co <- importDVs(staid = "09180500",
 
 waterdata <- bind_rows(co, gr)
 
-write_csv(waterdata, paste("./Reports/Rept-data/", config$study, YEAR, "ar-water.csv", sep = "_"))
+write_csv(waterdata, paste0("./Reports/Rept-data/", paste(config$study, YEAR, "ar-water.csv", sep = "_")))
