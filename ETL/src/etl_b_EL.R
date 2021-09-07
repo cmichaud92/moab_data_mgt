@@ -81,7 +81,7 @@ if (nrow(qc_sheet) == 0) {
   # ----- Data cleanup -----
   fnl_dat <- dat %>%
     #  map(~ modify_if(.x, is.POSIXct, as.character)) %>%
-    map(~ select(.x, -c(matches("_flg$|_index$|^key_"))))
+    map(~ select(.x, -c(matches("_flg$|_index$"))))
 
   # ----- Additional cleaning and structuring -----
 
@@ -101,7 +101,7 @@ if (nrow(qc_sheet) == 0) {
     mutate(PitTagType = as.character(pit_type),
            IsPitTagRecapture = case_when(pit_recap == "Y" ~ TRUE,
                                          pit_recap == "N" ~ FALSE)) %>%
-    select(SiteID = site_id,
+    select(key_aa,
            PitTagString = pit_num,
            IsPitTagRecapture,
            PitTagType,
@@ -113,7 +113,7 @@ if (nrow(qc_sheet) == 0) {
   nst_floytag <- fnl_dat$floytag %>%
     mutate(IsFloyTagRecapture = case_when(floy_recap == "Y" ~ TRUE,
                                           floy_recap == "N" ~ FALSE)) %>%
-    select(SiteID = site_id,
+    select(key_aa,
            FloyTagString = floy_num,
            FloyTagColorCode = floy_color,
            IsFloyTagRecapture,
@@ -131,7 +131,8 @@ if (nrow(qc_sheet) == 0) {
                                      species %in% spp_nat &
                                        tubercles == "N" ~ FALSE)) %>%
     separate(ray_ct, into = c("DorsalRayCount", "AnalRayCount"), sep = "/") %>%
-    select(SiteID = site_id,
+    select(key_aa,
+           SiteID = site_id,
            EncounterDateTime_UTC = datetime,
            EncounterLocation_BelknapMiles = rmi,
            SpeciesCode = species,
@@ -148,8 +149,9 @@ if (nrow(qc_sheet) == 0) {
            Northing_UTM = loc_y,
            EPSGCode = epsg,
            Notes = fish_notes) %>%
-    left_join(nst_pittag, by = "SiteID") %>%
-    left_join(nst_floytag, by = "SiteID") %>%
+    left_join(nst_pittag, by = "key_aa") %>%
+    left_join(nst_floytag, by = "key_aa") %>%
+    select(-key_aa) %>%
     nest(FishData = c(EncounterDateTime_UTC:FloyTag))
 
 
