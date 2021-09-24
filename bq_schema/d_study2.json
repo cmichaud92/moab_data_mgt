@@ -1,0 +1,50 @@
+[
+	{
+		"description": "MFO/UCRB/SJRB program code for study",
+		"mode": "REQUIRED",
+		"name": "StudyCode",
+		"type": "STRING"
+	},
+		{
+		"description": "Official study name",
+		"mode": "REQUIRED",
+		"name": "StudyName",
+		"type": "STRING"
+	},
+	{
+		"description": "Description of the study",
+		"mode": "NULLABLE",
+		"name": "StudyDescription",
+		"type": "STRING"
+	},
+	{
+		"description": "Year",
+		"mode": "REQUIRED",
+		"name": "Year",
+		"type": "INTEGER"
+	},
+	{
+		"description": "Investigator's first name",
+		"mode": "REQUIRED",
+		"name": "InvestigatorFirstName",
+		"type": "STRING"
+	},
+	{
+		"description": "Investigator's last name",
+		"mode": "REQUIRED",
+		"name": "InvestigatorLastName",
+		"type": "STRING"
+	},
+	{
+		"description": "Is this person the principal investigator?",
+		"mode": "NULLABLE",
+		"name": "IsPrincipal",
+		"type": "BOOLEAN"
+	},
+	{
+		"description": "Documentation of data issues which may affect data use",
+		"mode": "NULLABLE",
+		"name": "DataDocumentation",
+		"type": "STRING"
+	}		
+]

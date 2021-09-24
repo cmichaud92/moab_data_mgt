@@ -49,7 +49,7 @@ CONFIG <- "macos"
 
 
 
-# ----- Fetch config based on execution env. -----
+# ----- Fetch config based on Study. -----
 {
   Sys.setenv(R_CONFIG_ACTIVE = CONFIG)
   config <- config::get(value = paste0(STUDY, "_config"),
@@ -57,9 +57,16 @@ CONFIG <- "macos"
 
 }
 
-# ----- Authenticate to bigquery -----
+#----------------------
+# Big Query connection
+#----------------------
+
+# Authenticate to bq
 {
-  bq_auth(email = config$email)
+  options(
+    gargle_oauth_cache = ".secrets",
+    gargle_oauth_email = TRUE
+  )
 
   bq_view <- dbConnect(
     bigrquery::bigquery(),

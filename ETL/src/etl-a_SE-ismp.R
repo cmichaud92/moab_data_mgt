@@ -10,14 +10,13 @@
 {
   library(tidyverse)
   library(lubridate)
+  library(bigrquery)
   library(sf)
-  library(googlesheets4)
-  library(googledrive)
   library(UCRBtools)
   library(DBI)
 }
 # source functions
-#source("./etl/src/qcfx_EL.R")
+source("~/Documents/etc/bq_write-safe.R")
 
 # build "exclude"
 `%!in%` <- Negate(`%in%`)
@@ -60,58 +59,6 @@ CONFIG = "macos"
 }
 
 
-
-#--------------------------------------
-# Google Drive auth for googlesheets access
-#--------------------------------------
-
-# -----Authenticate to google drive-----
-
-drive_auth(email = config$email)
-gs4_auth(token = drive_token())
-
-
- # ----- Locate QAQC sheet -----
-if (CONFIG == "development") {
-
-  qc_sheet <- drive_get(paste(YEAR, "dev", config$study, "QAQC", sep = "_"))
-
-} else {
-
-  qc_sheet <- drive_get(paste(YEAR, config$study, "QAQC", sep = "_"))
-
-}
-
-# Scrape info from QAQC-sheet if it exists
-
-if (nrow(qc_sheet) > 1) {                       # There are multiple QAQC sheets for this project-year ???
-
-  stop("Problem with google sheets")
-
-} else if (nrow(qc_sheet) == 0) {               # There is no existing QAQC sheet for this project-year
-
-  sheets_dat <- list()
-  sheets_dat$last_num <- 0
-  sheets_dat$exists_key_a <- ""
-  message("No existing QAQC sheet. Starting site number = 0")
-
-} else if (nrow(qc_sheet) == 1) {               # There is an existing QAQC sheet for this project-year
-
-  tmp <- read_sheet(qc_sheet, range = "site")
-
-  sheets_dat <- list()
-
-  sheets_dat$last_num <- tmp %>%                # Calculate the site_id start number
-    pull(id_site) %>%
-    max() %>%
-    str_sub(start = -3) %>%
-    as.integer()
-
-  sheets_dat$exist_key_a <- tmp %>%
-    pull(key_a)
-
-  message("QAQC sheet exists, check sheets_dat for details")
-}
 
 
 #-------------------------------
@@ -258,26 +205,16 @@ if (exists("tmp_site")) {
                            str_pad(s_idx, 3, "left", "0"),
                            sep = "_")) %>%
 
-    left_join(tbl_rch, by = c("reach" = "cd_rch")) %>%                   # Add rvr_code variable
+    left_join(tbl_rch, by = c("reach" = "cd_rch"))                   # Add rvr_code variable
 
-    select(id_site, study,
-           year,
-           cd_rvr,
-           cd_rch = reach,
-           date,
-           rmi,
-           matches("mc_|hab_"),
-#           algae,
-           ilat,
-           ilon,
-           crew,
-           site_notes, s_idx, key_a) #%>%
 
   samp_n <- select(site, id_site, key_a) %>%
     left_join(tm_stp, by = "key_a") %>%
     arrange(ts) %>%
     group_by(id_site) %>%
     mutate(id_haul = paste(id_site, str_pad(row_number(), width = 2, pad = "0"), sep = "."))# Create site_id df and apply to all tables.
+
+  data_cks(site)
 
   } else {
 
@@ -292,26 +229,38 @@ if (exists("tmp_haul")) {
   haul <- tmp_haul %>%
     left_join(samp_n, by = c("key_a", "key_aa")) %>%
     filter(haul_width > 0 &
-             haul_lengt > 0) %>%
-    select(id_haul,
-           id_site,
-           cd_gear = gear,
-           haul_datetime = ts,
-           haul_length = haul_lengt,
-           haul_width,
-           haul_notes,
-           s_idx,
-           h_idx,
-           key_a,
-           key_aa,
-           s_idx
-           )
+             haul_lengt > 0)
+
+  data_cks(haul)
+
   } else {
 
   stop ("No `haul` data present")
 
 }
 
+# Depth data
+if (exists("tmp_depth")) {
+
+  depth <- tmp_depth %>%
+    select(-c(key_aaa, dep_notes)) %>%
+    pivot_wider(names_from = location,
+                values_from = depth:sub_2,
+                names_glue = "{location}_{.value}")
+
+  data_cks((depth))
+
+} else {
+
+  message("No depth table in data")
+}
+
+# join haul and depth tables
+
+if (exists("haul") & exists("depth")) {
+
+  haul <- left_join(haul, depth, by = c("key_a", "key_aa"))
+}
 
 # Count data
 
@@ -323,14 +272,9 @@ if (exists("tmp_ct")) {
     group_by(key_a, key_aa, species) %>%
     summarise(across(fish_count, sum),
               .groups = "drop") %>%
-    left_join(samp_n, by = c("key_a", "key_aa")) %>%
-    select(id_site,
-           id_haul,
-           cd_spp = species,
-           n_fish = fish_count,
-           key_a,
-           key_aa,
-           s_idx)
+    left_join(samp_n, by = c("key_a", "key_aa"))
+
+  data_cks(count)
 
   } else {
 
@@ -343,21 +287,7 @@ if (exists("tmp_fish")) {
   fish <- left_join(tmp_fish, samp_n, by = c("key_a", "key_aa")) %>%
     arrange(ts) %>%
     mutate(f_idx = row_number(),
-           n_fish = 1) %>%
-
-    select(id_haul,
-           id_site,
-           cd_spp = species,
-           n_fish,
-           tot_length,
-           weight,
-           cd_disp = disp,
-           photo_num,
-           fish_notes,
-           key_a,
-           key_aa,
-           key_aab,
-           s_idx)
+           fish_count = 1)
 
   } else {
 
@@ -372,10 +302,12 @@ if (exists("fish") & exists("count")) {
     bind_rows(count) %>%
     arrange(id_haul)
 
+  data_cks(fish)
   } else {
 
   message("No count data present")
 }
+
 
 
 # Vial table
@@ -387,116 +319,108 @@ if (exists("tmp_vial")) {
     select(id_haul,
            id_site,
            vial_num,
-           vial_type,
-           photo_num,
-           vial_notes,
-           key_a,
-           key_aa,
-           key_aac,
-           s_idx)
-
-  } else {
-
-  message("No `vial` data present")
-}
-
-
-
-#------------------------------
-# QC data.tables
-#------------------------------
-
-ck_meta <- meta
-
-if (exists("site")) {
-  ck_site <- site %>%
-    arrange(id_site)
-}
-
-if (exists("haul") && exists("site")) {
-  ck_haul <- haul %>%
-    left_join(select(site,
-                     id_site,
-                     pass,
-                     cd_rvr,
-                     cd_rch,
-                     rmi),
-               by = "id_site") %>%
-    arrange(id_haul)
-}
-
-if (exists("ck_haul") && exists("fish")) {
-
-  ck_fish <- fish %>%
-    left_join(select(ck_haul,
-                     id_haul,
-                     pass,
-                     cd_rvr,
-                     cd_rch,
-                     rmi),
-              by = "id_haul") %>%
-    arrange(id_haul)
-}
-
-if (exists("ck_haul") && exists("vial")) {
-
-  ck_vial <- vial %>%
-    left_join(select(ck_haul,
-                     id_haul,
-                     pass,
-                     cd_rvr,
-                     cd_rch,
-                     rmi),
-              by = "id_haul") %>%
-    arrange(id_haul)
-}
-
-
-#-----------------------------------
-# Prep files for append to gsheet
-#-----------------------------------
-if (nrow(ck_site) == 0) {
-
-  stop("No new data to add!!!")
+           vial_type)
 
 } else {
 
-ck_names<-grep("^ck_",names(.GlobalEnv),value=TRUE) %>%
-  sort()
-
-ck_dat<-do.call("list", mget(ck_names))
-
-fnl_names <- str_remove(ck_names, "ck_")
-
-names(ck_dat) <- fnl_names
-
-ck_dat <- ck_dat[sapply(ck_dat, nrow) > 0] #Remove 0 nrow dataframes
-
-#saveRDS(ck_dat, file = paste0("./projects/", config$proj, "-", data_yr, "/output/", data_id,"_QAQC-data.Rds"))
+  # vial <-  tibble(
+  #
+  # )
 
 
+  message("No `vial` data present, creating filler table")
 
-# ----- Append data to QAQC gsheet -----
-
-if (nrow(qc_sheet) == 0) {
-
-  gs4_create(name = paste(YEAR, config$study, "QAQC", sep = "_"),
-             sheets = ck_dat)
-
-  drive_mv(paste(YEAR, config$study, "QAQC", sep = "_"),
-           path = paste0(gsub("^.*?Drive/", "", config$gsheets_path), "/"))
-
-  } else if (nrow(qc_sheet == 1)) {
-
-  names(ck_dat) %>%
-    map(~ sheet_append(qc_sheet, data = ck_dat[[.]], sheet = .))
-
-  } else {
-
-  stop("issues with google sheets")
-
- }
 }
+
+#---------------------------
+# Final tables
+#---------------------------
+
+# Water Quality
+water <- site %>%
+  mutate(IsSecchiMaxDepth = ifelse(!is.na(hab_secchi), FALSE, TRUE),
+         WaterQualityNotes = str_extract(site_notes, ".*[Ss]ecchi.*")) %>%
+  select(SiteID = id_site,
+         WaterTemperatureMain_C = mc_temp,
+         SecchiDepthMain_mm = mc_secchi,
+         WaterTemperatureHabitat_C = hab_temp,
+         SecchiDepthHabitat_mm = hab_secchi,
+         IsSecchiMaxDepth,
+         WaterQualityNotes)
+
+water$WaterTemperatureHabitat_C[water$SiteID == "138ismp_2021_016"] <- 24
+
+nst_water <- water %>%
+  nest(WaterQuality = WaterTemperatureMain_C:WaterQualityNotes)
+
+
+# Fish Data
+nst_fish <- fish %>%
+  mutate(across(where(is.logical), as.character)) %>%
+  select(HaulID = id_haul,
+         SpeciesCode = species,
+         FishCount = fish_count,
+         TotalLength_mm = tot_length,
+         Weight_g = weight,
+         DispositionCode = disp,
+         FishEncounterNotes = fish_notes) %>%
+  nest(FishData = c(SpeciesCode:FishEncounterNotes))
+
+# Haul Data
+nst_haul <- haul %>%
+  select(SiteID = id_site,
+         HaulID = id_haul,
+         GearCode = gear,
+         HaulDateTime_Local = haul_datetime,
+         HaulLength_m = haul_length,
+         HaulWidth_m = haul_width,
+         HaulMeanDepth_mm = haul_avg_depth,
+         PrimarySubstrate = cd_sub,
+         HasRedShiner = rs,
+         HasSandShiner = ss,
+         HasFatHead = fh,
+         HaulNotes = haul_notes) %>%
+  mutate(across(matches("^Has"), ~ case_when(.x == "Y" ~ TRUE,
+                                             .x == "N" ~ FALSE))) %>%
+  left_join(nst_fish, by = "HaulID") %>%
+  nest(HaulData = HaulID:FishData)
+
+# Final nested site data
+site <- fnl_dat$site %>%
+  mutate(SiteEPSGCode = 4326,
+         PassIdentifier = as.character(pass),
+         SiteDate_Local = as.Date(date),
+         .keep = "unused") %>%
+  select(SiteID = id_site,
+         StudyCode = study,
+         RiverCode = cd_rvr,
+         PassIdentifier,
+         SiteLocation_BelknapMiles = rmi,
+         SiteDate_Local,
+         PrimaryHabitatCode = hab_1,
+         SecondaryHabitatCode = hab_2,
+         SiteLength_m = hab_length,
+         SiteWidth_m = hab_width,
+         SiteMaxDepth_mm = hab_mx_dep,
+         SiteLongitude_DD = ilon,
+         SiteLatitude_DD = ilat,
+         SiteEPSGCode,
+         CrewNames = crew,
+         SiteNotes = site_notes) %>%
+  left_join(nst_water, by = "SiteID") %>%
+  left_join(nst_haul, by = "SiteID")
+
+}
+
+
+# Write data to Big Query
+
+if (exists("site")) {
+  write_safe(df = site)
+  #  message("place code here")
+}
+
+
 
 ## End
 
