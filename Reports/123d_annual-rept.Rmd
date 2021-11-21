@@ -62,12 +62,12 @@ tmp_fish <- dat$fish %>%
 
 ```{r spatial-io, include=FALSE}
 # ----- Centerline (NHD) -----
-ctr <- st_read("~/Documents/Data/Spatial-data/ucrb_spat_v2.sqlite",
+ctr <- st_read("C:/Users/cmichaud/OneDrive - DOI/Documents/Data/Spatial/ucrb_spat_v2.sqlite",
                layer = "nhd_ctr_lns") %>%
   filter(nm_rvr %in% c("Green River", "Colorado River"))  
 
 # ----- RMI points (NHD) -----
-pt1 <- st_read("~/Documents/Data/Spatial-data/ucrb_spat_v2.sqlite",
+pt1 <- st_read("C:/Users/cmichaud/OneDrive - DOI/Documents/Data/Spatial/ucrb_spat_v2.sqlite",
                layer = "nhd_rmi_pts")
 
 # ----- Subset points to individual reaches -----
@@ -253,6 +253,38 @@ cpue_rch <- cpue %>%
 
 ```
 
+```{r}
+# Aggregate to reach and lifestage calculate CPUE
+ls_co_tmp <- tmp_site %>% 
+  filter(cd_rvr == "CO") %>% 
+  select(id_site, amt_effort_sec) %>% 
+  inner_join(tmp_fish, by = "id_site") %>% 
+  filter(cd_spp == "SM" &
+           !is.na(tot_length)) 
+
+ls_co <- ls_co_tmp %>% 
+  life_stage(specvar = cd_spp, lenvar = tot_length, piscivore = FALSE) %>% 
+  group_by(id_site, amt_effort_sec, ls) %>% 
+  summarise(n_fish = sum(n_fish), 
+            .groups = "drop") %>% 
+  complete(nesting(id_site, amt_effort_sec),
+           nesting(ls), 
+           fill = list(n_fish = 0)) %>% 
+  group_by(ls) %>% 
+  summarise(amt_effort_hr = sum(amt_effort_sec)/3600,
+            n_fish = sum(n_fish),
+            .groups = "drop") %>%
+  mutate(cpue = round(n_fish/amt_effort_hr, 2))
+  
+
+                   
+  complete(nesting(site_id, haul_id, reach, haul_area),
+           nesting(species),
+           fill = list(fish_count = 0)) %>%
+
+UCRBtools::life_stage()
+```
+
 
 
 ```{r biomet-data}
@@ -350,7 +382,7 @@ Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(
 ```{r summary-flx}
 s_summary %>%
 
-  flextable(col_keys = c("rch_name", "date_min", "date_max", 
+  flextable(col_keys = c("nm_rch", "date_min", "date_max", 
                          "sampl_days", "effort_hr", "temp_rng", "dis_rng")) %>% 
   set_table_properties(width = .7, layout = "autofit") %>% 
 
@@ -358,7 +390,7 @@ s_summary %>%
 
   align(align = "center", part = "all") %>% 
   set_header_labels(
-    rch_name = "Reach",
+    nm_rch = "Reach",
     date_min = "Start Date",
     date_max = "End Date",
     sampl_days = "Days Sampled",
@@ -831,7 +863,7 @@ cpue_ls
 ```{r eval=FALSE}
 # Too few encounters for LFH!!!!
 
-lf_co <- fish_bio$LWW %>% 
+lf_co <- fish_bio$LCO %>% 
   fig_lf(.x = "SM", .fig_num = 6)
 # fig_lf(.data = fish_bio$LCO, .x = "WE")
 # fig_lf(.data = fish_bio$LCO, .x = "SM")
@@ -840,7 +872,7 @@ lf_co <- fish_bio$LWW %>%
 cap5 <- paste(capture.output(BrailleR::VI(lf_co)), collapse = " ")
 
 #generate alt data
-sum_lf <- summary(fish_bio$LWW$tot_length[fish_bio$LGR$cd_spp == "SM"])
+sum_lf <- summary(fish_bio$LCO$tot_length[fish_bio$LCO$cd_spp == "SM"])
 nm_sum_lf <- names(sum_lf)
 vec_lf <- as.vector(round(sum_lf))
 dat_lf <- paste(nm_sum_lf, " = ", vec_lf, collapse = ", ")
