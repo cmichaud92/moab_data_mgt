@@ -24,12 +24,18 @@ library(UCRBtools)
 library(kableExtra)
 library(sf)
 library(mapview)
-library(BrailleR)
+#library(BrailleR)
 
 theme_set(theme_bw())
 mapviewOptions(basemaps = c("Esri.WorldImagery", "OpenTopoMap", "CartoDB.Positron", "OpenStreetMap"))
 
 `%!in%` <- Negate(`%in%`)
+
+assets_path <- "C:/Users/cmichaud/OneDrive - DOI/Documents/Projects/udwr-mfo_data-mgt/Reports/Assets/"
+#tusher <- "tusher_diversion.jpg"
+co_efish <- "efboat-westwater1.jpg"
+gr_we <- "walleye-carlos.jpg"
+#co_sm <- "smallmouth-nick1.jpg"
 ```
 
 
@@ -134,7 +140,7 @@ samp_stats <- list(
 
 s_summary <- site %>%
   group_by(cd_rvr, nm_rvr, nm_rch, cd_rch) %>% 
-  summarise(across(.cols = c(matches("_rmi_"), date, discharge, temp), samp_stats),
+  summarise(across(.cols = c(matches("rmi_"), date, discharge, temp), samp_stats),
             effort_hr = round(sum(amt_effort_sec, na.rm = TRUE)/3600, 1),
             sampl_days = length(unique(as.Date(tm_end))),
             .groups = "drop") %>% 
@@ -208,35 +214,6 @@ cpue_dt <- cpue %>%
             .groups = "drop") %>% 
   mutate(cpue_dt = n_fish/tot_effort)
 
-# water2 <- dat$usgswater %>% 
-#   left_join(cpue_dt, by = c("date", "cd_rvr")) %>% 
-#   left_join(tbl_rvr, by = c("cd_rvr" = "cd_rvr"))  %>% 
-#   filter(date < as.Date("2020-10-01"))
-
-
-# Aggregate to river for the Colorado River
-# cpue_rvr_co <- cpue %>%
-#   filter(cd_rvr == "CO") %>% 
-#   group_by(rvr_name, com_name, cd_spp) %>% 
-#   summarise(fish_ct = sum(fish_ct),
-#             tot_effort = round(sum(el_sec)/3600,2),
-#            .groups = "drop") %>% 
-#   mutate(cpue = round(fish_ct/tot_effort, 2)) %>% 
-#   filter(fish_ct > 0) 
-
-
-# Calculate cpue by week and split reach
-# cpue_week <- cpue %>% 
-#   mutate(wk = week(tm_end)) %>% 
-#   group_by(cd_rch, rch_name, wk, com_name, cd_spp) %>% 
-#   summarise(fish_ct = sum(fish_ct),
-#             tot_effort = round(sum(el_sec)/3600,2),
-#             m_temp = mean(rvr_temp, na.rm = TRUE),
-#            .groups = "drop") %>% 
-#   mutate(cpue = round(fish_ct/tot_effort, 2)) %>% 
-#   filter(fish_ct > 0) %>% 
-#   split(.$cd_rch)
-
 ```
 
 ```{r}
@@ -255,34 +232,28 @@ cpue_rch <- cpue %>%
 
 ```{r}
 # Aggregate to reach and lifestage calculate CPUE
-ls_co_tmp <- tmp_site %>% 
-  filter(cd_rvr == "CO") %>% 
-  select(id_site, amt_effort_sec) %>% 
+ls_cpue_tmp <- tmp_site %>% 
+#  filter(cd_rvr == "CO") %>% 
+  select(id_site, cd_rvr, nm_rvr, amt_effort_sec) %>% 
   inner_join(tmp_fish, by = "id_site") %>% 
-  filter(cd_spp == "SM" &
+  filter(cd_spp %in% c("SM", "NP", "WE") &
            !is.na(tot_length)) 
 
-ls_co <- ls_co_tmp %>% 
+ls_cpue <- ls_cpue_tmp %>% 
   life_stage(specvar = cd_spp, lenvar = tot_length, piscivore = FALSE) %>% 
-  group_by(id_site, amt_effort_sec, ls) %>% 
+  group_by(id_site, cd_rvr, nm_rvr, cd_spp, cn_spp, amt_effort_sec, ls) %>% 
   summarise(n_fish = sum(n_fish), 
             .groups = "drop") %>% 
-  complete(nesting(id_site, amt_effort_sec),
+  complete(nesting(id_site, cd_rvr, nm_rvr, cd_spp, cn_spp, amt_effort_sec),
            nesting(ls), 
            fill = list(n_fish = 0)) %>% 
-  group_by(ls) %>% 
-  summarise(amt_effort_hr = sum(amt_effort_sec)/3600,
-            n_fish = sum(n_fish),
-            .groups = "drop") %>%
-  mutate(cpue = round(n_fish/amt_effort_hr, 2))
+  mutate(cpue = (amt_effort_sec / 3600) * n_fish)
+  # group_by(cd_rvr, nm_rvr, cd_spp, cn_spp,ls) %>% 
+  # summarise(amt_effort_hr = sum(amt_effort_sec)/3600,
+  #           n_fish = sum(n_fish),
+  #           .groups = "drop") %>%
+  # mutate(cpue = round(n_fish/amt_effort_hr, 2))
   
-
-                   
-  complete(nesting(site_id, haul_id, reach, haul_area),
-           nesting(species),
-           fill = list(fish_count = 0)) %>%
-
-UCRBtools::life_stage()
 ```
 
 
@@ -352,32 +323,15 @@ hydro <- function(.data, .river_code, .fig_num) {
  
 
  # Test:
- # hydro(water2, .river_code = "GR", .fig_num = 12)
+ # hydro(water, .river_code = "GR", .fig_num = 12)
 ```
 
 # {.tabset .tabset-fade .tabset-pills}
 
 ### Abstract
 
-Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$tm_end))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$cd_spp == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$cd_spp == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
+Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye and smallmouth bass from the upper Colorado River Basin in `r unique(year(site$tm_end))`. Crews focused removal efforts within specific subreaches where catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$rmi_start_bel_max` - `r s_summary_rch$LGR$rmi_end_bel_min`) on the Green River and below Westwater Canyon (RM `r s_summary_rch$LCO$rmi_start_bel_max` - `r s_summary_rch$LCO$rmi_end_bel_min`) on the Colorado River. A total of `r sum(cpue$n_fish[cpue$cd_spp == "WE"])` walleye and `r sum(cpue$n_fish[cpue$cd_spp == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
 
-```{r summary-gt, eval=FALSE}
-# s_summary %>%
-#   select(rch_name, date_min, date_max, effort_hr, temp_rng, dis_rng) %>% 
-#   gt() %>% 
-#     tab_header("Summary of Project 123d sampling effort by reach during 2020") %>% 
-#     cols_label(rch_name = "Reach Name",
-#                date_min = "Start Date", 
-#                date_max = "End Date",
-#                effort_hr = "Effort (hr)",
-#                temp_rng = "Temperature Range (*C)",
-#                dis_rng = "Discharge Range (cubic-feet per second)"
-#     ) %>% 
-#     cols_align(
-#       align = "center",
-#       columns = vars(date_min, date_max, effort_hr, temp_rng, dis_rng))
-
-```
 
 ```{r summary-flx}
 s_summary %>%
@@ -423,12 +377,12 @@ ___
           layer.name = "Tusher") +
   mapview(lww, color = "red3", 
           lwd = 5,
-          layer.name = "Lower Westwater")
+          layer.name = "Lower Colorado River")
 
 ```
 </center>
 
-Figure 1. Removal reaches sampled during 2020: Lower Gray Canyon Reach (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`), Tusher Reach (RM `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Westwater Reach (RM `r s_summary_rch$LWW$start_rmi_max` and`r s_summary_rch$LWW$end_rmi_min`).
+Figure 1. Removal reaches sampled during 2021: Tusher Reach (RM `r s_summary_rch$LGR$rmi_max` - `r s_summary_rch$LGR$rmi_end_bel_min`) and Lower Colorado Reach (RM `r s_summary_rch$LCO$rmi_start_bel_max` and`r s_summary_rch$LCO$rmi_end_bel_min`).
 
 <br><br>
 
@@ -441,13 +395,13 @@ ___
 <br><br>
 
 <center>
-```{r fig.cap="A photograph showing the Tusher diversion. It appears as a low head concrete dam with river water cascading over it. Concrete flow regulation gates are visible on the far side of the structure and a sunset over the desert landscape is in the background"}
-knitr::include_graphics(path = "/Users/christophermichaud/Documents/Projects/udwr-mfo_data-mgt/Reports/Assets/walleye-carlos.jpg",
+```{r fig.cap="A photograph showing UDWR fisheries technician Carlos Montanez with 14 tagged walleye on the deck of an electrofishing boat. All fish were later frozen and transported to Fort Collins, CO for use in an energetics study. A scale and measuring board are also visible."}
+knitr::include_graphics(path = paste0(assets_path, gr_we),
                         dpi = 75)
 ```
 </center>  
 
-The Tusher Diversion dam creates a semi-passable barrier on the Green River and delineates the upper boundary of the Tusher Walleye Management Reach.
+UDWR fisheries technician Carlos Montanez with 14 tagged walleye on the deck of an electrofishing boat. All fish were later frozen and transported to Fort Collins, CO for use in an energetics study. 
 
 ___
 
@@ -455,7 +409,7 @@ ___
 
 ### Tusher Reach
 
-The Green River peaked at `r w_summary_rvr$GR$discharge_max` cfs on `r w_summary_rvr$GR$dt_max_flow`, measured on USGS gage 09315000, located at the town of Green River, Utah (Figure 2). Crews began sampling below Tusher Diversion on `r s_summary_rch$LGR$date_min` and ended on `r s_summary_rch$LGR$date_max`. Main channel temperatures ranged between `r s_summary_rch$LGR$temp_rng` °C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LGR$start_rmi_max` and `r s_summary_rch$LGR$end_rmi_min` (Figure 1).
+The Green River peaked at `r w_summary_rvr$GR$discharge_max` cfs on `r w_summary_rvr$GR$dt_max_flow`, measured on USGS gage 09315000, located at the town of Green River, Utah (Figure 2). Crews began sampling below Tusher Diversion on `r s_summary_rch$LGR$date_min` and ended on `r s_summary_rch$LGR$date_max`. Main channel temperatures ranged between `r s_summary_rch$LGR$temp_rng` °C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LGR$rmi_start_bel_max` and `r s_summary_rch$LGR$rmi_end_bel_min` (Figure 1).
 
 <br><br>
 
@@ -481,6 +435,8 @@ fnl_cap1 <- paste(c(cap1, extra_text, fnl_dt_dis), collapse = " ")
 
 <center>
 ```{r gr-dis-fig, fig.cap=fnl_cap1}
+
+#fig.cap=fnl_cap1, 
 h_gr
 
 ```
@@ -488,7 +444,7 @@ h_gr
 </center>
 
 
-A total of `r s_summary_rch$LGR$effort_hr` hours of effort were allocated to this reach and  `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "walleye"]` walleye were removed (catch-per-unit-effort [cpue] = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "walleye"]` fish-per-hour).  Walleye catch rates are similar to recent years (Table 4), but with increased effort substantially more walleye have been removed in 2019 and 2020 than previous years. Walleye total lengths within this reach were also similar to recent years (mean = `r round(mean(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE))` mm, range = `r min(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE)` - `r max(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE)` mm) (Figure 3). Additionally, researchers removed `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "smallmouth bass"]` smallmouth bass (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "smallmouth bass"]` fish-per-hour) and `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "northern pike"]` northern pike (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "northern pike"]` fish-per-hour) (Table 2). Native fish encounters are summarized in Table 3. 
+A total of `r s_summary_rch$LGR$effort_hr` hours of effort were allocated to this reach and  `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "walleye"]` walleye were removed (catch-per-unit-effort [cpue] = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "walleye"]` fish-per-hour).  Walleye catch rates are similar to recent years (Table 4), but with increased effort substantially more walleye have been removed in 2019, 2020 and 2021 than previous years. Walleye total lengths within this reach were also similar to recent years (mean = `r round(mean(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE))` mm, range = `r min(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE)` - `r max(fish_bio$LGR$tot_length[fish_bio$LGR$cd_spp == "WE"], na.rm = TRUE)` mm) (Figure 3). Additionally, researchers removed `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "smallmouth bass"]` smallmouth bass (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "smallmouth bass"]` fish-per-hour) and `r cpue_rch$LGR$fish_ct[cpue_rch$LGR$cn_spp == "northern pike"]` northern pike (cpue = `r cpue_rch$LGR$cpue[cpue_rch$LGR$cn_spp == "northern pike"]` fish-per-hour) (Table 2). Native fish encounters are summarized in Table 3. 
   
 <br><br>
 
@@ -613,96 +569,27 @@ ___
 
 <br><br>
 
-### Lower Gray Canyon Reach
-
-Utah Division of Wildlife Resources completed an experimental two day removal pass in Lower Gray Canyon between 24 and 25 June 2020.  Noting a subtle increase in smallmouth bass within the Tusher reach and curious as to presence of walleye above the Tusher diversion we committed to a two-day raft-based removal pass. Crews encountered no walleye and only one smallmouth bass (Table 5) and few endangered fish (Table 6) within this reach. Researchers sampled between river miles `r s_summary_rch$DESO$start_rmi_max` and `r s_summary_rch$DESO$end_rmi_min` (Figure 1).
-
-<br><br>
-
-```{r eval=FALSE}
-cpue_rch$DESO %>% 
-  filter(cd_spp %!in% spp_nat) %>%
-  arrange(desc(cpue)) %>% 
-  select(-c(cd_rch)) %>% 
-  
-  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
-  set_table_properties(width = .6, layout = "autofit") %>% 
-  theme_vanilla() %>% 
-  align(align = "center", part = "all") %>% 
-
-  set_header_labels(
-    cn_spp = "Common Name",
-    fish_ct = "Number of Fish Encountered",
-    cpue = "Fish-per-Hour"
-  ) %>% 
-  bg(bg = "#D3D3D3", part = "header") %>%
-  add_footer_lines(values = paste("Based on ", 
-                                  unique(cpue_rch$DESO$tot_effort), 
-                                  " hours of electrofishing effort"), 
-                   top = FALSE) %>%
-  add_header_lines(values = "Table 5. Nonnative fish encounters within the \nLower Gray Canyon Reach, 2020", 
-                   top = TRUE) %>% 
-    bold(part = "header") %>% 
-  fontsize(i = 1, size = 14, part = "header") %>% 
-  align(j = 1, align = "left", part = "all")
-
-```
-
-<br><br>
-
-```{r eval=FALSE}
-cpue_rch$DESO %>% 
-  filter(cd_spp %in% spp_nat) %>%
-  arrange(desc(cpue)) %>% 
-  select(-c(cd_rch)) %>% 
-
-  flextable(col_keys = c("cn_spp", "fish_ct", "cpue")) %>% 
-  set_table_properties(width = .6, layout = "autofit") %>% 
-
-  theme_vanilla() %>% 
-  align(align = "center", part = "all") %>% 
-
-  set_header_labels(
-    cn_spp = "Common Name",
-    fish_ct = "Number of Fish Encountered",
-    cpue = "Fish-per-Hour"
-  ) %>% 
-  bg(bg = "#D3D3D3", part = "header") %>%
-  add_footer_lines(values = paste("Based on ", 
-                                  unique(cpue_rch$DESO$tot_effort), 
-                                  " hours of electrofishing effort"), 
-                   top = FALSE) %>% 
-  add_header_lines(values = "Table 6. Native fish encounters within the \nLower Gray Canyon Reach, 2020", 
-                   top = TRUE) %>% 
-    bold(part = "header") %>% 
-  fontsize(i = 1, size = 14, part = "header") %>% 
-  align(j = 1, align = "left", part = "all")
-```
-
-
-
-<br><br>
 
 ## Colorado River
 
 <br><br>
 
 <center>
-```{r fig.cap="A photograph showing eight ~300 mm smallmouth bass on a measuring board"}
-knitr::include_graphics(path = "/Users/christophermichaud/Documents/Projects/udwr-mfo_data-mgt/Reports/Assets/smallmouth-nick.jpg",
+```{r fig.cap="A photograph showing a researcher on the front of an electrofishing boat, holding a dip net. The black shist and sandstone canyons of Westwater are visible in the background."}
+knitr::include_graphics(path = paste0(assets_path, co_efish),
                         dpi = 200)
 ```
 </center>
 
-Smallmouth bass removed from the swift narrows of Lower Westwater Canyon.
+Electrofishing below Westwater Canyon.
 
 ___
 
 <br><br>
 
-### Lower Westwater Reach
+### Lower Colorado Reach
 
-The Colorado River, at USGS gage 09180500, located near Cisco, UT, peaked at `r w_summary_rvr$CO$discharge_max` cfs on `r w_summary_rvr$CO$dt_max_flow` (Figure 4).  Crews began sampling within Lower Westwater Canyon on `r s_summary_rch$LWW$date_min` and ended on `r s_summary_rch$LWW$date_max`. Main channel temperatures ranged between `r s_summary_rch$LWW$temp_rng`°C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LWW$start_rmi_max` and`r s_summary_rch$LWW$end_rmi_min` (Figure 1).  During past years UDWR has encountered substantial numbers of walleye and smallmouth bass within this reach. Consequently, we monitor this reach under Project 123d and if walleye or smallmouth catch rates warrant, we apply additional removal effort.
+The Colorado River, at USGS gage 09180500, located near Cisco, UT, peaked at `r w_summary_rvr$CO$discharge_max` cfs on `r w_summary_rvr$CO$dt_max_flow` (Figure 4).  Crews began sampling the lower Colorado reach on `r s_summary_rch$LCO$date_min` and ended on `r s_summary_rch$LCO$date_max`. Main channel temperatures ranged between `r s_summary_rch$LCO$temp_rng`°C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LCO$rmi_start_bel_max` and`r s_summary_rch$LCO$rmi_end_bel_min` (Figure 1).  During past years UDWR has encountered substantial numbers of walleye and smallmouth bass within this reach. Consequently, we monitor this reach under Project 123d and if walleye or smallmouth catch rates warrant, we apply additional removal effort.
 
 
 <br><br>
@@ -733,7 +620,7 @@ h_co
 
 </center>
 
-A total of `r s_summary_rch$LWW$effort_hr` hours of effort was allocated to this reach and crews removed a total of `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$cn_spp == "walleye"]` walleye (catch-per-unit-effort [cpue] = `r cpue_rch$LWW$cpue[cpue_rch$LWW$cn_spp == "walleye"]` fish-per-hour).  Additionally, `r cpue_rch$LWW$fish_ct[cpue_rch$LWW$cn_spp == "smallmouth bass"]` smallmouth bass were removed (cpue = `r cpue_rch$LWW$cpue[cpue_rch$LWW$cn_spp == "smallmouth bass"]`) within this reach (Table 7, Figure 5). This catch-rate is substantially higher than recent years (Table 9). This is particularly concerning due to the close proximity of the Westwater Canyon humpback chub population. Smallmouth bass mean total length in 2020 was `r round(mean(fish_bio$LWW$tot_length[fish_bio$LWW$cd_spp == "SM"], na.rm = TRUE))` mm (range = `r min(fish_bio$LWW$tot_length[fish_bio$LWW$cd_spp == "SM"], na.rm = TRUE)` - `r max(fish_bio$LWW$tot_length[fish_bio$LWW$cd_spp == "SM"], na.rm = TRUE)` mm) (Figure 6). Ancillary captures of native species are noted in Table 8. 
+A total of `r s_summary_rch$LCO$effort_hr` hours of effort was allocated to this reach and crews removed `r cpue_rch$LCO$fish_ct[cpue_rch$LCO$cn_spp == "walleye"]` walleye (catch-per-unit-effort [cpue] = `r cpue_rch$LCO$cpue[cpue_rch$LCO$cn_spp == "walleye"]` fish-per-hour).  Additionally, `r cpue_rch$LCO$fish_ct[cpue_rch$LCO$cn_spp == "smallmouth bass"]` smallmouth bass were removed (cpue = `r cpue_rch$LCO$cpue[cpue_rch$LCO$cn_spp == "smallmouth bass"]`) within this reach (Table 5, Figure 5). This catch-rate is substantially higher than recent years (Table 7). This is particularly concerning due to the close proximity of the Westwater Canyon humpback chub population. Smallmouth bass mean total length in 2021 was `r round(mean(fish_bio$LCO$tot_length[fish_bio$LCO$cd_spp == "SM"], na.rm = TRUE))` mm (range = `r min(fish_bio$LCO$tot_length[fish_bio$LCO$cd_spp == "SM"], na.rm = TRUE)` - `r max(fish_bio$LCO$tot_length[fish_bio$LCO$cd_spp == "SM"], na.rm = TRUE)` mm) (Figure 6). Ancillary captures of native species are noted in Table 6. 
 
 
 <br><br>
@@ -760,7 +647,7 @@ cpue_rch$LCO %>%
                                   unique(cpue_rch$LCO$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>%
-  add_header_lines(values = paste("Table 7. Nonnative fish encounters within the \nLower Westwater Reach,", yr), 
+  add_header_lines(values = paste("Table 5. Nonnative fish encounters within the \nLower Colorado Reach,", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -792,7 +679,7 @@ cpue_rch$LCO %>%
                                   unique(cpue_rch$LCO$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>% 
-  add_header_lines(values = paste("Table 8. Native fish encounters within the \nLower Westwater Reach,", yr), 
+  add_header_lines(values = paste("Table 6. Native fish encounters within the \nLower Colorado Reach,", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -820,7 +707,7 @@ tibble(yr = c("2021", "2020", "2019", "2018", "2017"),
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
  
-  add_header_lines(values = paste("Table 9. Smallmouth bass catch-per-unit-effort \nLower Westwater Reach, 2017 -", yr), 
+  add_header_lines(values = paste("Table 7. Smallmouth bass catch-per-unit-effort \nLower Colorado Reach, 2017 -", yr), 
                    top = TRUE) %>% 
     bold(part = "header") %>% 
   fontsize(i = 1, size = 14, part = "header") %>% 
@@ -829,30 +716,31 @@ tibble(yr = c("2021", "2020", "2019", "2018", "2017"),
 
 <br><br>
 
-```{r cpue-ls-cap, eval=FALSE}
-cpue_ls <- dat$cpue_ls %>% 
+```{r cpue-ls-cap, eval=TRUE, warning=FALSE}
+cpue_ls_fig <- ls_cpue %>% 
   filter(cd_rvr == "CO" &
            cd_spp == "SM") %>% 
-    mutate(ls_fct = as_factor(life_stage), 
-         ls_fct = fct_recode(ls_fct, 
+    mutate(ls_fct = as_factor(ls), 
+         ls_fct = fct_recode(ls_fct,
+                             Sub_Juvenile = "SUB-JUV",
                              Juvenile = "JUV",
-                             Adult = "ADULT",
-                             Piscivore = "ADULT_PIC"),
-         ls_fct = fct_relevel(ls_fct, "Juvenile", "Adult", "Piscivore")) %>%
+                             Adult = "ADULT"),
+         ls_fct = fct_relevel(ls_fct, "Sub_Juvenile", "Juvenile", "Adult")) %>%
   
   
   ggplot() +
-  geom_boxplot(aes(x = ls_fct, y = cpue)) +
-  labs(title = "Figure 5. CPUE by size class for smallmouth bass \nencountered within the Lower Westwater Reach, 2020",
+  geom_boxplot(aes(x = ls_fct, y = cpue), fill = "grey") +
+  scale_y_log10() +
+  labs(title = "Figure 5. CPUE by size class for smallmouth bass \nencountered within the Lower Colorado Reach, 2021",
        x = "",
        y = "Fish per hour")
 
-cap4 <- paste(capture.output(BrailleR::VI(cpue_ls)), collapse = " ")
+cap4 <- paste(capture.output(BrailleR::VI(cpue_ls_fig)), collapse = " ")
 ```
 
 <center>
-```{r cpue-ls-fig, fig.cap=cap4, eval=FALSE}
-cpue_ls
+```{r cpue-ls-fig, fig.cap=cap4, eval=TRUE, warning=FALSE}
+cpue_ls_fig
 
 ```
 </center>
@@ -860,7 +748,7 @@ cpue_ls
 <br><br>
 
 
-```{r eval=FALSE}
+```{r eval=TRUE, warning=FALSE}
 # Too few encounters for LFH!!!!
 
 lf_co <- fish_bio$LCO %>% 
@@ -884,7 +772,7 @@ fnl_cap5 <- paste(c(cap5, extra_text, dat_lf), collapse = "")
 ```
 
 <center>
-```{r fig.cap=fnl_cap5, eval=FALSE}
+```{r fig.cap=fnl_cap5, eval=TRUE, warning=FALSE}
 lf_co
 ```
 
@@ -921,7 +809,7 @@ III.	Principal Investigator(s): <br><br>
 
 
 IV.	Abstract: <br><br>
-Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$tm_end))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$start_rmi_max` - `r s_summary_rch$LGR$end_rmi_min`) and Lower Gray Canyon (RM `r s_summary_rch$DESO$start_rmi_max` - `r s_summary_rch$DESO$end_rmi_min`) on the Green River and Lower Westwater Canyon (RM `r s_summary_rch$LWW$start_rmi_max` - `r s_summary_rch$LWW$end_rmi_min`) on the Colorado River. A total of `r sum(cpue$fish_ct[cpue$cd_spp == "WE"])` walleye and `r sum(cpue$fish_ct[cpue$cd_spp == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
+Utah Division of Wildlife Resources (UDWR, Moab, UT) expended `r sum(as.numeric(s_summary$effort_hr))` hours of electrofishing effort under Project 123d to remove nonnative walleye from the upper Colorado River Basin in `r unique(year(site$tm_end))`. Crews focused removal efforts within specific subreaches where walleye catch rates are highest: downstream of Tusher Diversion (River Mile (RM) `r s_summary_rch$LGR$rmi_start_bel_max` - `r s_summary_rch$LGR$rmi_end_bel_min`) on the Green River and below Westwater Canyon (RM `r s_summary_rch$LCO$rmi_start_bel_max` - `r s_summary_rch$LCO$rmi_end_bel_min`) on the Colorado River. A total of `r sum(cpue$n_fish[cpue$cd_spp == "WE"])` walleye and `r sum(cpue$n_fish[cpue$cd_spp == "SM"])` smallmouth bass were encountered throughout sampling in `r yr`. While walleye encounters were similar to recent years, smallmouth bass captures on the Lower Colorado River were substantially more frequent. <br><br>
 
 
 V.	Study Schedule: <br><br>
@@ -948,7 +836,7 @@ Reduce negative interactions between nonnative and endangered fishes.
 Develop basinwide aquatic management plan to reduce nonnative fish impacts
 while providing sportfishing opportunities. <br><br>
 
-VII.	Accomplishment of FY 2020 Tasks and Deliverables, Discussion of Initial Findings and Shortcomings: <br><br>
+VII.	Accomplishment of FY 2021 Tasks and Deliverables, Discussion of Initial Findings and Shortcomings: <br><br>
 See reach specific analysis tabs <br><br>
 
 VIII.	Additional noteworthy observations: <br><br>
@@ -962,11 +850,7 @@ IX.	Recommendations: <br><br>
   the reach. Removal should be conducted spring through early summer, or when justified by 
   noteworthy catch rates. <br><br> 
 
-    * **Lower Grey Canyon (Green River)**  
-  Targeted walleye removal within this reach is not warranted at present time. Monitor through project 
-  123a (Deso bass removal) efforts when appropriate. <br><br>
-  
-    * **Lower Westwater Canyon (Colorado River)**  
+    * **Below Westwater Canyon (Colorado River)**  
   Continued application of effort between Big Hole camp and Fish Ford (RM 116-105.5). Removal should be 
   conducted spring through early summer, or when justified by noteworthy catch rates of walleye *or* 
   smallmouth bass. <br><br>
@@ -974,18 +858,18 @@ IX.	Recommendations: <br><br>
 X.	Project Status: <br><br>
 On track and ongoing <br><br>
 
-XI.	FY 2020 Budget Status
+XI.	FY 2021 Budget Status
 
 	A.	Funds Provided: $53,697
 	B.	Funds Expended: $53,697
 	C.	Difference:  $0
-	D.	Percent of the FY 2020 work completed, and projected costs to complete: 100%
+	D.	Percent of the FY 2021 work completed, and projected costs to complete: 100%
 	E.	Recovery Program funds spent for publication charges: $0  <br><br>
 
 XII.	Status of Data Submission: <br><br> 
-Data will be uploaded into STReaMs by the end of January 2021. <br><br>
+Data will be uploaded into STReaMs by the end of January 2022. <br><br>
 
 XIII.	Signed:	<br>                                  		          
-Principal Investigator: <u> Christopher Michaud </u>	&nbsp;&nbsp;&nbsp;&nbsp;	Date: <u> 11/1/2020 </u>
+Principal Investigator: <u> Christopher Michaud </u>	&nbsp;&nbsp;&nbsp;&nbsp;	Date: <u> 11/21/2021 </u>
 
 <br><br>
