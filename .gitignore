@@ -9,6 +9,7 @@ output/
 doc/
 z_trash/
 z_depricated/
+.secrets/
 
 
 # specific file types
@@ -19,7 +20,6 @@ z_depricated/
 *.docx
 *.tex
 *.csv
-
 # Configruation files (yaml)
 #*.yml
 
