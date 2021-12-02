@@ -9,7 +9,7 @@ output/
 doc/
 z_trash/
 z_depricated/
-
+.secrets/
 
 # specific file types
 *.html
