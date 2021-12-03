@@ -5,10 +5,10 @@ author:
   name: Christopher Michaud
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 output:
+  word_document: default
   html_document:
     fig_caption: no
     keep_md: yes
-  word_document: default
 ---
 
 
@@ -145,9 +145,12 @@ s_summary <- site %>%
             sampl_days = length(unique(as.Date(tm_end))),
             .groups = "drop") %>% 
   mutate_if(is.Date, ~ format(.x, "%d %B %Y")) %>% 
-  mutate_if(is.numeric, ~ format(.x, big.mark = ",")) %>% 
-  mutate(temp_rng = paste(temp_min, temp_max, sep = " - "),
+#  mutate_if(is.numeric, ~ format(.x, big.mark = ",")) %>% 
+  mutate(across(contains("rmi"), ~format(round(., 1), nsmall = 1)),
+         across(contains("discharge"), ~format(., big.mark = ",")),
+         temp_rng = paste(temp_min, temp_max, sep = " - "),
          dis_rng = paste(discharge_min, discharge_max, sep = " - "),
+#         across(dis_rng, ~format(., big.mark = ",")),
          .keep = "unused") %>% 
   arrange(dmy(.$date_min))
 
@@ -382,7 +385,7 @@ ___
 ```
 </center>
 
-Figure 1. Removal reaches sampled during 2021: Tusher Reach (RM `r s_summary_rch$LGR$rmi_max` - `r s_summary_rch$LGR$rmi_end_bel_min`) and Lower Colorado Reach (RM `r s_summary_rch$LCO$rmi_start_bel_max` and`r s_summary_rch$LCO$rmi_end_bel_min`).
+Figure 1. Removal reaches sampled during 2021: Tusher Reach (RM `r s_summary_rch$LGR$rmi_start_bel_max` - `r s_summary_rch$LGR$rmi_end_bel_min`) and Lower Colorado Reach (RM `r s_summary_rch$LCO$rmi_start_bel_max` -`r s_summary_rch$LCO$rmi_end_bel_min`).
 
 <br><br>
 
@@ -395,13 +398,13 @@ ___
 <br><br>
 
 <center>
-```{r fig.cap="A photograph showing UDWR fisheries technician Carlos Montanez with 14 tagged walleye on the deck of an electrofishing boat. All fish were later frozen and transported to Fort Collins, CO for use in an energetics study. A scale and measuring board are also visible."}
+```{r fig.cap="A photograph showing UDWR fisheries technician Carlos Montanez with 14 walleye dislpayed on the deck of an electrofishing boat. All fish are oriented heads left and tails right and have white zipties secruing identification tags throughh their gills. A scale, bucket and measuring board are also visible."}
 knitr::include_graphics(path = paste0(assets_path, gr_we),
                         dpi = 75)
 ```
 </center>  
 
-UDWR fisheries technician Carlos Montanez with 14 tagged walleye on the deck of an electrofishing boat. All fish were later frozen and transported to Fort Collins, CO for use in an energetics study. 
+UDWR fisheries technician Carlos Montanez with 14 walleye on the deck of an electrofishing boat. All fish were later frozen and transported to Fort Collins, CO for use in an energetics study. 
 
 ___
 
@@ -452,7 +455,7 @@ A total of `r s_summary_rch$LGR$effort_hr` hours of effort were allocated to thi
 ```{r nnf-cpue-GR-gt}
 
 cpue_rch$LGR %>% 
-  filter(cd_spp %!in% spp_nat) %>%
+  filter(cd_spp %!in% c(spp_nat, "UI")) %>%
   arrange(desc(cpue)) %>% 
   select(-c(cd_rch)) %>% 
   
@@ -467,7 +470,7 @@ cpue_rch$LGR %>%
     cpue = "Fish-per-Hour"
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
-  add_footer_lines(values = paste("Based on ", 
+  add_footer_lines(values = paste0("Based on ", 
                                   unique(cpue_rch$LGR$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>%
@@ -501,7 +504,7 @@ cpue_rch$LGR %>%
     cpue = "Fish-per-Hour"
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
-  add_footer_lines(values = paste("Based on ", 
+  add_footer_lines(values = paste0("Based on ", 
                                   unique(cpue_rch$LGR$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>% 
@@ -575,7 +578,7 @@ ___
 <br><br>
 
 <center>
-```{r fig.cap="A photograph showing a researcher on the front of an electrofishing boat, holding a dip net. The black shist and sandstone canyons of Westwater are visible in the background."}
+```{r fig.cap="A photograph showing a researcher on the front of an electrofishing boat, holding a dip net. They are wearing black pants and a blue shirt with their back to the camera. The river in front of the boat is an opaque tan color. The black shist and sandstone canyons of Westwater are visible in the background."}
 knitr::include_graphics(path = paste0(assets_path, co_efish),
                         dpi = 200)
 ```
@@ -589,7 +592,7 @@ ___
 
 ### Lower Colorado Reach
 
-The Colorado River, at USGS gage 09180500, located near Cisco, UT, peaked at `r w_summary_rvr$CO$discharge_max` cfs on `r w_summary_rvr$CO$dt_max_flow` (Figure 4).  Crews began sampling the lower Colorado reach on `r s_summary_rch$LCO$date_min` and ended on `r s_summary_rch$LCO$date_max`. Main channel temperatures ranged between `r s_summary_rch$LCO$temp_rng`°C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LCO$rmi_start_bel_max` and`r s_summary_rch$LCO$rmi_end_bel_min` (Figure 1).  During past years UDWR has encountered substantial numbers of walleye and smallmouth bass within this reach. Consequently, we monitor this reach under Project 123d and if walleye or smallmouth catch rates warrant, we apply additional removal effort.
+The Colorado River, at USGS gage 09180500, located near Cisco, UT, peaked at `r w_summary_rvr$CO$discharge_max` cfs on `r w_summary_rvr$CO$dt_max_flow` (Figure 4).  Crews began sampling the lower Colorado reach on `r s_summary_rch$LCO$date_min` and ended on `r s_summary_rch$LCO$date_max`. Main channel temperatures ranged between `r s_summary_rch$LCO$temp_rng`°C during sampling (Table 1). Crews sampled between river miles `r s_summary_rch$LCO$rmi_start_bel_max` and`r s_summary_rch$LCO$rmi_end_bel_min` (Figure 1). UDWR began non-native fish removal work within this reach in 2014. Over the past three years researchers have documented an increasing trend in smallmouth bass encounters (Table 7). During the 2020 and 2021 field seasons UDWR applied additional effort, compared to past years, to combat this increasing smallmouth bass presence.
 
 
 <br><br>
@@ -643,7 +646,7 @@ cpue_rch$LCO %>%
     cpue = "Fish-per-Hour"
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
-  add_footer_lines(values = paste("Based on ", 
+  add_footer_lines(values = paste0("Based on ", 
                                   unique(cpue_rch$LCO$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>%
@@ -675,7 +678,7 @@ cpue_rch$LCO %>%
     cpue = "Fish-per-Hour"
   ) %>% 
   bg(bg = "#D3D3D3", part = "header") %>%
-  add_footer_lines(values = paste("Based on ", 
+  add_footer_lines(values = paste0("Based on ", 
                                   unique(cpue_rch$LCO$tot_effort), 
                                   " hours of electrofishing effort"), 
                    top = FALSE) %>% 
@@ -793,8 +796,8 @@ I.	Project Title: Walleye control in the Lower Green and Colorado Rivers.
 II.	Bureau of Reclamation Agreement Number(s): <br><br> 
   UDWR Moab: R19AP00059 <br>                                                 
   Project/Grant Period:  
-  Start date (Mo/Day/Yr): 10/01/2018  
-  End date: (Mo/Day/Yr): 09/30/2023  
+  Start date (Mo/Day/Yr): 10/01/2019  
+  End date: (Mo/Day/Yr): 09/30/2024  
   Reporting period end date: 09/30/2020  
   Is this the final report? Yes __ No  <u> X </u> <br><br>
   
