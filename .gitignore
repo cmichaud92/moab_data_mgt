@@ -20,6 +20,7 @@ z_depricated/
 *.docx
 *.tex
 *.csv
+.DS_Store
 # Configruation files (yaml)
 #*.yml
 

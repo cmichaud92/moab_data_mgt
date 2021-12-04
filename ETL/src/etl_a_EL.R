@@ -517,104 +517,13 @@ if (exists("fnl_site")) {
 }
 
 
+# write non-nested data to rds
+dat_tbls <- list(site = site,
+                 fish = fish,
+                 pittag = pittag,
+                 vial = vial,
+                 water = water,
+                 meta = meta)
+write_rds(dat_tbls, "./ETL/output/2021_123d.Rds")
 ## End
-
-# ----- Additional cleaning and structuring -----
-
-# Water Quality
-nst_water <- water %>%
-  select(SiteID = site_id,
-         AmbientConductivity_uS = cond_amb,
-         SpecificConductivity_uS = cond_spec,
-         WaterTemperature_C = rvr_temp,
-         SecchiDepth_mm = secchi,
-         Notes = water_notes) %>%
-  nest(WaterQuality = AmbientConductivity_uS:Notes)
-
-
-# Pit Tag
-nst_pittag <- pittag %>%
-  mutate(PitTagType = as.character(pit_type),
-         IsPitTagRecapture = case_when(pit_recap == "Y" ~ TRUE,
-                                       pit_recap == "N" ~ FALSE)) %>%
-  select(SiteID = site_id,
-         PitTagString = pit_num,
-         IsPitTagRecapture,
-         PitTagType,
-         Notes = pit_notes) %>%
-  nest(PitTag = PitTagString:Notes)
-
-
-# Floy Tag
-# nst_floytag <- fnl_dat$floytag %>%
-#   mutate(IsFloyTagRecapture = case_when(floy_recap == "Y" ~ TRUE,
-#                                         floy_recap == "N" ~ FALSE)) %>%
-#   select(SiteID = site_id,
-#          FloyTagString = floy_num,
-#          FloyTagColorCode = floy_color,
-#          IsFloyTagRecapture,
-#          Notes = floy_notes) %>%
-#   nest(FloyTag = FloyTagString:Notes)
-
-
-# Fish Data
-nst_fish <- fish %>%
-  mutate(FishCount = 1,
-         IsRipe = case_when(grepl("^EXP", rep_cond) ~ TRUE,
-                            grepl("^INT|NOT", rep_cond) ~ FALSE),
-         IsTuberculate = case_when(species %in% spp_nat &
-                                     tubercles == "Y" ~ TRUE,
-                                   species %in% spp_nat &
-                                     tubercles == "N" ~ FALSE)) %>%
-  separate(ray_ct, into = c("DorsalRayCount", "AnalRayCount"), sep = "/") %>%
-  select(SiteID = site_id,
-         EncounterDateTime_UTC = datetime,
-         EncounterLocation_BelknapMiles = rmi,
-         SpeciesCode = species,
-         FishCount,
-         TotalLength_mm = tot_length,
-         Weight_g = weight,
-         Sex = sex,
-         IsRipe,
-         IsTuberculate,
-         DorsalRayCount,
-         AnalRayCount,
-         DispositionCode = disp,
-         Easting_UTM = loc_x,
-         Northing_UTM = loc_y,
-         EPSGCode = epsg,
-         Notes = fish_notes) %>%
-  left_join(nst_pittag, by = "SiteID") %>%
-#  left_join(nst_floytag, by = "SiteID") %>%
-  nest(FishData = c(EncounterDateTime_UTC:FloyTag))
-
-
-# Final nested site data
-site <- site %>%
-  mutate(across(pass, as.character)) %>%
-  select(SiteID = site_id,
-         StudyCode = project,
-         RiverCode = river,
-         PassIdentifier = pass,
-         StartLocation_BelknapMiles = start_rmi,
-         EndLocation_BelknapMiles = end_rmi,
-         StartDateTime_UTC = startdatetime,
-         EndDateTime_UTC = enddatetime,
-         Shoreline = shoreline,
-         Effort_Seconds = el_sec,
-         BoatName = boat,
-         CrewNames = crew,
-         Notes = site_notes) %>%
-  left_join(nst_water, by = "SiteID") %>%
-  left_join(nst_fish, by = "SiteID")
-
-}
-
-
-# Write data to Big Query
-
-if (exists("site")) {
-  write_safe(df = site)
-}
-
 
